@@ -1,9 +1,7 @@
 'use client'
 
-import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { 
   Bell, 
@@ -20,12 +18,6 @@ import {
 import { NotificationsPopover } from '@/components/notifications-popover'
 
 export function Navbar() {
-  const [project, setProject] = useState('My First System')
-  const pathname = usePathname()
-  
-  // Consider any page that isn't /dashboard or /projects as a generic "project opened" context for this demo
-  const isProjectPage = pathname !== '/dashboard' && pathname !== '/projects'
-
   return (
     <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#0a0e1a]/80 backdrop-blur-xl">
       <div className="flex items-center justify-between h-14 px-4 gap-3">
@@ -42,22 +34,6 @@ export function Navbar() {
           </div>
         </Link>
 
-        {isProjectPage && (
-          <>
-            {/* Divider */}
-            <div className="w-px h-6 bg-white/[0.08]" />
-
-            {/* Project Selector */}
-            <button className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] cursor-pointer hover:bg-white/[0.08] hover:border-white/[0.1] transition-all duration-200 group">
-              <div className="w-5 h-5 rounded bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] flex items-center justify-center">
-                <CodeXml className="w-3 h-3 text-white" />
-              </div>
-              <span className="text-[13px] font-medium text-white/70 group-hover:text-white/90 transition-colors">{project}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-white/30" />
-            </button>
-          </>
-        )}
-
         {/* Center: Search */}
         <div className="hidden md:flex flex-1 max-w-sm mx-auto">
           <div className="relative w-full">
@@ -72,18 +48,6 @@ export function Navbar() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-1.5">
-          {/* Git Branch */}
-          {isProjectPage && (
-            <>
-              <Link href="/git" className="hidden md:flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 hover:bg-white/[0.04] px-2.5 py-1.5 rounded-lg cursor-pointer transition-all duration-200">
-                <GitBranch className="w-3.5 h-3.5 text-emerald-400/60" />
-                <span className="font-medium">main</span>
-              </Link>
-
-              <div className="w-px h-5 bg-white/[0.06] mx-1" />
-            </>
-          )}
-
           <NotificationsPopover />
           
           <button className="p-2 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white/60 transition-all duration-200">
