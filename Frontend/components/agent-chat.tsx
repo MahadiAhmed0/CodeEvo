@@ -118,10 +118,10 @@ export function AgentChat({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (
   if (!isOpen) {
     return (
       <motion.button
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
         onClick={() => setIsOpen(true)}
-        className="absolute top-4 right-4 z-20 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white text-sm font-semibold shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-all duration-300"
+        className="absolute bottom-6 right-6 z-20 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white text-sm font-semibold shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-all duration-300"
       >
         <MessageSquare size={16} />
         Agent

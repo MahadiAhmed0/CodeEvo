@@ -103,14 +103,16 @@ const initialEdges: Edge[] = [
     target: '4',
     label: 'DB-CONN',
     style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
-    labelBgPadding: [8, 4],
+    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
+    labelBgPadding: [12, 6],
     labelStyle: { 
       fill: '#fcd34d',
-      fontSize: '10px',
-      fontWeight: '600',
-      fontFamily: 'var(--font-sometype-mono), monospace',
-      letterSpacing: '0.1em',
+      fontSize: '11px',
+      fontWeight: '500',
+      fontFamily: 'system-ui, sans-serif',
+      letterSpacing: '0.02em',
+      strokeWidth: 0,
+      stroke: 'none'
     },
   },
   {
@@ -119,14 +121,16 @@ const initialEdges: Edge[] = [
     target: '5',
     label: 'DB-CONN',
     style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
-    labelBgPadding: [8, 4],
+    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
+    labelBgPadding: [12, 6],
     labelStyle: { 
       fill: '#fcd34d',
-      fontSize: '10px',
-      fontWeight: '600',
-      fontFamily: 'var(--font-sometype-mono), monospace',
-      letterSpacing: '0.1em',
+      fontSize: '11px',
+      fontWeight: '500',
+      fontFamily: 'system-ui, sans-serif',
+      letterSpacing: '0.02em',
+      strokeWidth: 0,
+      stroke: 'none'
     },
   },
   {
@@ -135,14 +139,16 @@ const initialEdges: Edge[] = [
     target: '2',
     label: 'REST API',
     style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
-    labelBgPadding: [8, 4],
+    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
+    labelBgPadding: [12, 6],
     labelStyle: { 
       fill: '#6ee7b7',
-      fontSize: '10px',
-      fontWeight: '600',
-      fontFamily: 'var(--font-sometype-mono), monospace',
-      letterSpacing: '0.1em',
+      fontSize: '11px',
+      fontWeight: '500',
+      fontFamily: 'system-ui, sans-serif',
+      letterSpacing: '0.02em',
+      strokeWidth: 0,
+      stroke: 'none'
     },
   },
   {
@@ -151,14 +157,16 @@ const initialEdges: Edge[] = [
     target: '3',
     label: 'REST API',
     style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
-    labelBgPadding: [8, 4],
+    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
+    labelBgPadding: [12, 6],
     labelStyle: { 
       fill: '#6ee7b7',
-      fontSize: '10px',
-      fontWeight: '600',
-      fontFamily: 'var(--font-sometype-mono), monospace',
-      letterSpacing: '0.1em',
+      fontSize: '11px',
+      fontWeight: '500',
+      fontFamily: 'system-ui, sans-serif',
+      letterSpacing: '0.02em',
+      strokeWidth: 0,
+      stroke: 'none'
     },
   },
   {
@@ -167,14 +175,16 @@ const initialEdges: Edge[] = [
     target: '6',
     label: 'EVENTS',
     style: { stroke: '#c74cf0', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
-    labelBgPadding: [8, 4],
+    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
+    labelBgPadding: [12, 6],
     labelStyle: { 
       fill: '#f0abfc',
-      fontSize: '10px',
-      fontWeight: '600',
-      fontFamily: 'var(--font-sometype-mono), monospace',
-      letterSpacing: '0.1em',
+      fontSize: '11px',
+      fontWeight: '500',
+      fontFamily: 'system-ui, sans-serif',
+      letterSpacing: '0.02em',
+      strokeWidth: 0,
+      stroke: 'none'
     },
   },
 ]
@@ -200,14 +210,16 @@ export function Canvas({ selectedNode, setSelectedNode }: CanvasProps) {
             ...connection,
             style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
             label: 'CONNECTION',
-            labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
-            labelBgPadding: [8, 4],
+            labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
+            labelBgPadding: [12, 6],
             labelStyle: { 
               fill: '#c4b5fd',
-              fontSize: '10px',
-              fontWeight: '600',
-              fontFamily: 'var(--font-sometype-mono), monospace',
-              letterSpacing: '0.1em',
+              fontSize: '11px',
+              fontWeight: '500',
+              fontFamily: 'system-ui, sans-serif',
+              letterSpacing: '0.02em',
+              strokeWidth: 0,
+              stroke: 'none'
             },
           },
           eds
@@ -320,7 +332,9 @@ export function Canvas({ selectedNode, setSelectedNode }: CanvasProps) {
             background: '#0d1220',
             border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: '12px',
+            bottom: '76px',
           }}
+          position="bottom-right"
           maskColor="rgba(108, 59, 245, 0.08)"
           nodeColor="#1e2440"
         />
