@@ -17,6 +17,8 @@ import {
   Cloud,
 } from 'lucide-react'
 
+import { NotificationsPopover } from '@/components/notifications-popover'
+
 export function Navbar() {
   const [project, setProject] = useState('My First System')
   const pathname = usePathname()
@@ -82,10 +84,8 @@ export function Navbar() {
             </>
           )}
 
-          <button className="p-2 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white/60 transition-all duration-200 relative">
-            <Bell className="w-4 h-4" />
-            <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-purple-400" />
-          </button>
+          <NotificationsPopover />
+          
           <button className="p-2 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white/60 transition-all duration-200">
             <Settings className="w-4 h-4" />
           </button>
