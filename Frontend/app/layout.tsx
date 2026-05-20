@@ -19,8 +19,17 @@ export const metadata: Metadata = {
     userScalable: false,
   },
   icons: {
-    icon: '/logo.png',
-    apple: '/logo.png',
+    icon: [
+      {
+        media: '(prefers-color-scheme: light)',
+        url: '/logo-favicon-black.png',
+      },
+      {
+        media: '(prefers-color-scheme: dark)',
+        url: '/logo-favicon-white.png',
+      }
+    ],
+    apple: '/logo-favicon-black.png',
   },
 }
 
