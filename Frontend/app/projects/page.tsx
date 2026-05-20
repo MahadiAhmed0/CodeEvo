@@ -26,7 +26,7 @@ export default function ProjectsPage() {
   const currentProjects = allProjectsData.slice(startIndex, startIndex + itemsPerPage)
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#0a0e1a] text-white">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#0a0e1a] text-white">
       <Navbar />
       <main className="flex-1 overflow-auto">
         <div className="max-w-7xl mx-auto p-8">
