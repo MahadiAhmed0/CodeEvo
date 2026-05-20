@@ -39,8 +39,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="bg-white scroll-smooth">
-      <body className={`${_sometypeMono.variable} font-sans antialiased bg-white text-[#0b1c2c]`}>
+    <html lang="en" className="bg-[#0a0e1a] scroll-smooth">
+      <body className={`${_sometypeMono.variable} font-sans antialiased bg-[#0a0e1a] text-white`}>
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
