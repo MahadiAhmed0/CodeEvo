@@ -29,7 +29,7 @@ export function Navbar() {
               src="/logo.png" 
               alt="CodeEvo" 
               fill
-              className="object-contain object-left brightness-0 invert"
+              className="object-contain object-left"
               priority
             />
           </div>
