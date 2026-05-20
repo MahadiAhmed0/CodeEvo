@@ -15,9 +15,10 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { DiagramNode } from './diagram-node'
 import { useDiagramStore } from '@/lib/store'
-import { Download, Plus, Zap } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { Download, Plus, Zap, X, Code2, Network } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { APITestingModal } from './api-testing-modal'
+import { CodeViewer } from './code-viewer'
 
 const nodeTypes = {
   diagram: DiagramNode,
@@ -45,7 +46,7 @@ const initialNodes: Node[] = [
       port: 8081,
       endpoints: ['/orders', '/orders/{id}', '/orders/{id}/status'],
     },
-    position: { x: 400, y: 100 },
+    position: { x: 450, y: 100 },
     type: 'diagram',
   },
   {
@@ -57,7 +58,7 @@ const initialNodes: Node[] = [
       port: 9000,
       endpoints: ['/payments', '/payments/{id}/verify'],
     },
-    position: { x: 700, y: 100 },
+    position: { x: 800, y: 100 },
     type: 'diagram',
   },
   {
@@ -68,7 +69,7 @@ const initialNodes: Node[] = [
       engine: 'postgres',
       collections: ['users', 'profiles', 'preferences'],
     },
-    position: { x: 100, y: 300 },
+    position: { x: 100, y: 350 },
     type: 'diagram',
   },
   {
@@ -79,7 +80,7 @@ const initialNodes: Node[] = [
       engine: 'postgres',
       collections: ['orders', 'order_items', 'shipments'],
     },
-    position: { x: 400, y: 300 },
+    position: { x: 450, y: 350 },
     type: 'diagram',
   },
   {
@@ -90,7 +91,7 @@ const initialNodes: Node[] = [
       provider: 'kafka',
       topics: ['order.created', 'payment.processed', 'user.registered'],
     },
-    position: { x: 700, y: 300 },
+    position: { x: 800, y: 350 },
     type: 'diagram',
   },
 ]
@@ -100,71 +101,81 @@ const initialEdges: Edge[] = [
     id: 'e1-4',
     source: '1',
     target: '4',
-    label: 'db-connection',
-    style: { stroke: '#f59e0b', strokeDasharray: '5,5', strokeWidth: 2.5 },
+    label: 'DB-CONN',
+    style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
+    labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
+    labelBgPadding: [8, 4],
     labelStyle: { 
-      fill: '#f59e0b',
-      fontSize: '12px',
+      fill: '#fcd34d',
+      fontSize: '10px',
       fontWeight: '600',
       fontFamily: 'var(--font-sometype-mono), monospace',
+      letterSpacing: '0.1em',
     },
-    labelBgStyle: { fill: 'transparent' },
   },
   {
     id: 'e2-5',
     source: '2',
     target: '5',
-    label: 'db-connection',
-    style: { stroke: '#f59e0b', strokeDasharray: '5,5', strokeWidth: 2.5 },
+    label: 'DB-CONN',
+    style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
+    labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
+    labelBgPadding: [8, 4],
     labelStyle: { 
-      fill: '#f59e0b',
-      fontSize: '12px',
+      fill: '#fcd34d',
+      fontSize: '10px',
       fontWeight: '600',
       fontFamily: 'var(--font-sometype-mono), monospace',
+      letterSpacing: '0.1em',
     },
-    labelBgStyle: { fill: 'transparent' },
   },
   {
     id: 'e1-2',
     source: '1',
     target: '2',
-    label: 'REST',
-    style: { stroke: '#10b981', strokeDasharray: '5,5', strokeWidth: 2.5 },
+    label: 'REST API',
+    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
+    labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
+    labelBgPadding: [8, 4],
     labelStyle: { 
-      fill: '#10b981',
-      fontSize: '12px',
+      fill: '#6ee7b7',
+      fontSize: '10px',
       fontWeight: '600',
       fontFamily: 'var(--font-sometype-mono), monospace',
+      letterSpacing: '0.1em',
     },
-    labelBgStyle: { fill: 'transparent' },
   },
   {
     id: 'e2-3',
     source: '2',
     target: '3',
-    label: 'REST',
-    style: { stroke: '#10b981', strokeDasharray: '5,5', strokeWidth: 2.5 },
+    label: 'REST API',
+    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
+    labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
+    labelBgPadding: [8, 4],
     labelStyle: { 
-      fill: '#10b981',
-      fontSize: '12px',
+      fill: '#6ee7b7',
+      fontSize: '10px',
       fontWeight: '600',
       fontFamily: 'var(--font-sometype-mono), monospace',
+      letterSpacing: '0.1em',
     },
-    labelBgStyle: { fill: 'transparent' },
   },
   {
     id: 'e2-6',
     source: '2',
     target: '6',
-    label: 'events',
-    style: { stroke: '#cb6ce6', strokeDasharray: '5,5', strokeWidth: 2.5 },
+    label: 'EVENTS',
+    style: { stroke: '#c74cf0', strokeDasharray: '4,4', strokeWidth: 1.5 },
+    labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
+    labelBgPadding: [8, 4],
     labelStyle: { 
-      fill: '#cb6ce6',
-      fontSize: '12px',
+      fill: '#f0abfc',
+      fontSize: '10px',
       fontWeight: '600',
       fontFamily: 'var(--font-sometype-mono), monospace',
+      letterSpacing: '0.1em',
     },
-    labelBgStyle: { fill: 'transparent' },
   },
 ]
 
@@ -178,6 +189,7 @@ export function Canvas({ selectedNode, setSelectedNode }: CanvasProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
   const [showNodeMenu, setShowNodeMenu] = useState(false)
   const [showAPIModal, setShowAPIModal] = useState(false)
+  const [viewMode, setViewMode] = useState<'graph' | 'code'>('graph')
   const { setSelectedNode: storeSetSelectedNode } = useDiagramStore()
 
   const onConnect = useCallback(
@@ -186,7 +198,17 @@ export function Canvas({ selectedNode, setSelectedNode }: CanvasProps) {
         addEdge(
           {
             ...connection,
-            style: { stroke: '#004aad' },
+            style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
+            label: 'CONNECTION',
+            labelBgStyle: { fill: '#0a0e1a', strokeWidth: 0 },
+            labelBgPadding: [8, 4],
+            labelStyle: { 
+              fill: '#c4b5fd',
+              fontSize: '10px',
+              fontWeight: '600',
+              fontFamily: 'var(--font-sometype-mono), monospace',
+              letterSpacing: '0.1em',
+            },
           },
           eds
         )
@@ -194,6 +216,28 @@ export function Canvas({ selectedNode, setSelectedNode }: CanvasProps) {
     },
     [setEdges]
   )
+
+  const onNodeClick = useCallback((_: any, node: Node) => {
+    if (setSelectedNode) {
+      setSelectedNode({
+        id: node.id,
+        type: node.data.type,
+        name: node.data.name,
+        position: node.position,
+        language: node.data.language,
+        port: node.data.port,
+        engine: node.data.engine,
+        provider: node.data.provider,
+        endpoints: node.data.endpoints,
+        collections: node.data.collections,
+        topics: node.data.topics,
+      })
+    }
+  }, [setSelectedNode])
+
+  const onPaneClick = useCallback(() => {
+    if (setSelectedNode) setSelectedNode(null)
+  }, [setSelectedNode])
 
   const addNewNode = (type: 'service' | 'database' | 'queue') => {
     const newNodeId = String(Math.max(...nodes.map(n => parseInt(n.id) || 0)) + 1)
@@ -250,108 +294,144 @@ export function Canvas({ selectedNode, setSelectedNode }: CanvasProps) {
   }
 
   return (
-    <div className="relative w-full h-full bg-white">
+    <div className="relative w-full h-full bg-[#0a0e1a]">
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         fitView
       >
-        <Background color="#e5e7eb" gap={16} />
+        <Background color="#1a1f35" gap={20} size={1} />
         <Controls
           style={{
-            background: 'white',
-            border: '2px solid #004aad',
-            borderRadius: '8px',
+            background: '#0d1220',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: '12px',
+            padding: '4px',
           }}
         />
         <MiniMap
           style={{
-            background: 'white',
-            border: '2px solid #004aad',
-            borderRadius: '8px',
+            background: '#0d1220',
+            border: '1px solid rgba(255,255,255,0.06)',
+            borderRadius: '12px',
           }}
-          maskColor="rgba(0, 74, 173, 0.1)"
+          maskColor="rgba(108, 59, 245, 0.08)"
+          nodeColor="#1e2440"
         />
       </ReactFlow>
 
+      {/* Code View Overlay */}
+      <AnimatePresence>
+        {viewMode === 'code' && (
+          <CodeViewer nodes={nodes} edges={edges} />
+        )}
+      </AnimatePresence>
+
       {/* Top Left - Add Node Button */}
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
         className="absolute top-4 left-4 z-10"
       >
         <div className="relative">
           <button
             onClick={() => setShowNodeMenu(!showNodeMenu)}
-            className="px-4 py-2 bg-gradient-to-r from-[#004aad] to-[#cb6ce6] text-white rounded-lg font-semibold flex items-center gap-2 hover:shadow-lg transition-all"
+            disabled={viewMode === 'code'}
+            className="px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white rounded-xl text-[13px] font-semibold flex items-center gap-2 hover:shadow-lg hover:shadow-purple-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Plus size={16} />
+            <Plus size={15} />
             Add Node
           </button>
 
-          {showNodeMenu && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="absolute bottom-full left-0 mb-2 bg-white rounded-lg shadow-xl border-2 border-[#004aad] overflow-hidden"
-            >
-              <button
-                onClick={() => addNewNode('service')}
-                className="w-full px-4 py-2 text-left hover:bg-blue-50 text-[#0b1c2c] font-semibold border-b border-gray-200 flex items-center gap-2"
+          <AnimatePresence>
+            {showNodeMenu && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                className="absolute top-full left-0 mt-2 bg-[#0d1220]/95 backdrop-blur-xl rounded-xl shadow-2xl border border-white/[0.08] overflow-hidden min-w-[180px]"
               >
-                <span>⚙️</span>
-                Service
-              </button>
-              <button
-                onClick={() => addNewNode('database')}
-                className="w-full px-4 py-2 text-left hover:bg-orange-50 text-[#0b1c2c] font-semibold border-b border-gray-200 flex items-center gap-2"
-              >
-                <span>🗄️</span>
-                Database
-              </button>
-              <button
-                onClick={() => addNewNode('queue')}
-                className="w-full px-4 py-2 text-left hover:bg-purple-50 text-[#0b1c2c] font-semibold flex items-center gap-2"
-              >
-                <span>📬</span>
-                Queue
-              </button>
-            </motion.div>
-          )}
+                {[
+                  { type: 'service' as const, icon: '⚙️', label: 'Service', color: 'hover:bg-purple-500/10' },
+                  { type: 'database' as const, icon: '🗄️', label: 'Database', color: 'hover:bg-amber-500/10' },
+                  { type: 'queue' as const, icon: '📬', label: 'Queue', color: 'hover:bg-pink-500/10' },
+                ].map(item => (
+                  <button
+                    key={item.type}
+                    onClick={() => addNewNode(item.type)}
+                    className={`w-full px-4 py-2.5 text-left text-white/70 hover:text-white text-[13px] font-medium border-b border-white/[0.04] last:border-0 flex items-center gap-2.5 transition-all duration-200 ${item.color}`}
+                  >
+                    <span className="text-base">{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
 
       {/* Top Right Controls */}
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="absolute top-4 right-4 flex gap-2 z-10"
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="absolute top-4 right-4 flex gap-4 z-10"
       >
-        <button
-          onClick={() => setShowAPIModal(true)}
-          className="px-4 py-2 bg-gradient-to-r from-[#004aad] to-[#cb6ce6] text-white rounded-lg font-semibold flex items-center gap-2 hover:shadow-lg transition-all"
-        >
-          <Zap size={16} />
-          API Test
-        </button>
-        <button
-          onClick={exportDiagram}
-          className="px-4 py-2 bg-white border-2 border-[#004aad] text-[#004aad] rounded-lg font-semibold flex items-center gap-2 hover:shadow-lg transition-all"
-        >
-          <Download size={16} />
-          Export
-        </button>
+        {/* View Toggle */}
+        <div className="flex bg-[#0d1220]/90 backdrop-blur-sm p-1 rounded-xl border border-white/[0.08]">
+          <button
+            onClick={() => setViewMode('graph')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'graph' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
+          >
+            <Network size={14} />
+            Graph
+          </button>
+          <button
+            onClick={() => setViewMode('code')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'code' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
+          >
+            <Code2 size={14} />
+            Code
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowAPIModal(true)}
+            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
+          >
+            <Zap size={14} className="text-amber-400/70" />
+            API Test
+          </button>
+          <button
+            onClick={exportDiagram}
+            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
+          >
+            <Download size={14} />
+            Download Code
+          </button>
+        </div>
       </motion.div>
 
       {/* Status Bar */}
-      <div className="absolute bottom-4 right-4 text-xs text-gray-600 bg-white px-4 py-2 rounded-lg border border-gray-200">
-        <p>
-          Nodes: {nodes.length} | Edges: {edges.length} | Branch: main | v1.2.0
-        </p>
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 text-[11px] text-white/20 bg-[#0d1220]/80 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/[0.06] z-10">
+        <span className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60" />
+          {nodes.length} Nodes
+        </span>
+        <span className="w-px h-3 bg-white/[0.06]" />
+        <span>{edges.length} Edges</span>
+        <span className="w-px h-3 bg-white/[0.06]" />
+        <span className="font-mono text-purple-400/40">v1.2.0</span>
       </div>
 
       {/* API Testing Modal */}

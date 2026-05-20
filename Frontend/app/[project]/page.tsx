@@ -3,29 +3,25 @@
 import { Navbar } from '@/components/navbar'
 import { Sidebar } from '@/components/sidebar'
 import { Canvas } from '@/components/canvas'
-import { ContextPanel } from '@/components/context-panel'
-import { AgentConsole } from '@/components/agent-console'
-import { FloatingActions } from '@/components/floating-actions'
+import { AgentChat } from '@/components/agent-chat'
 import { useState } from 'react'
 
-export default function Home() {
+export default function ProjectPage() {
   const [selectedNode, setSelectedNode] = useState(null)
-  const [agentRunning, setAgentRunning] = useState(false)
+  const [agentOpen, setAgentOpen] = useState(true)
 
   return (
-    <div className="flex flex-col h-screen bg-white text-[#0b1c2c]">
+    <div className="flex flex-col h-screen bg-[#0a0e1a] text-white overflow-hidden">
       <Navbar />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
+        <Sidebar selectedNode={selectedNode} setSelectedNode={setSelectedNode} />
         <main className="flex-1 flex overflow-hidden relative">
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col overflow-hidden">
             <Canvas selectedNode={selectedNode} setSelectedNode={setSelectedNode} />
           </div>
-          <ContextPanel selectedNode={selectedNode} />
+          <AgentChat isOpen={agentOpen} setIsOpen={setAgentOpen} />
         </main>
       </div>
-      <FloatingActions />
-      <AgentConsole running={agentRunning} setRunning={setAgentRunning} />
     </div>
   )
 }

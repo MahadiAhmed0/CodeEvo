@@ -2,7 +2,7 @@
 
 import { Handle, Position, NodeProps } from 'reactflow'
 import { useDiagramStore } from '@/lib/store'
-import { Trash2, Copy, Server, Network, Database, Layers } from 'lucide-react'
+import { Server, Network, Database, Layers } from 'lucide-react'
 
 interface DiagramNodeProps extends NodeProps {
   data: {
@@ -19,44 +19,56 @@ interface DiagramNodeProps extends NodeProps {
 }
 
 export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
-  const { removeNode, setSelectedNode, selectedNode } = useDiagramStore()
+  const { setSelectedNode, selectedNode } = useDiagramStore()
 
   const typeConfig = {
     service: {
-      color: '#004aad',
+      color: '#6c3bf5',
+      colorEnd: '#8b5cf6',
       label: 'SERVICE',
       icon: Server,
+      glow: 'rgba(108, 59, 245, 0.15)',
+      borderColor: 'rgba(108, 59, 245, 0.25)',
     },
     api: {
       color: '#10b981',
+      colorEnd: '#34d399',
       label: 'API',
       icon: Network,
+      glow: 'rgba(16, 185, 129, 0.15)',
+      borderColor: 'rgba(16, 185, 129, 0.25)',
     },
     database: {
       color: '#f59e0b',
+      colorEnd: '#fbbf24',
       label: 'DATABASE',
       icon: Database,
+      glow: 'rgba(245, 158, 11, 0.15)',
+      borderColor: 'rgba(245, 158, 11, 0.25)',
     },
     queue: {
-      color: '#cb6ce6',
+      color: '#c74cf0',
+      colorEnd: '#e879f9',
       label: 'QUEUE',
       icon: Layers,
+      glow: 'rgba(199, 76, 240, 0.15)',
+      borderColor: 'rgba(199, 76, 240, 0.25)',
     },
   }
 
   const config = typeConfig[data.type]
   const isSelected = selectedNode?.id === id
+  const IconComp = config.icon
 
   return (
     <div
-      className={`w-56 rounded-xl overflow-hidden shadow-lg transition-all ${
-        isSelected ? 'ring-2 ring-offset-2' : 'hover:shadow-2xl'
-      }`}
+      className="w-48 rounded-xl overflow-hidden transition-all duration-300 cursor-pointer"
       style={{
-        backgroundColor: '#f8f9fb',
-        borderWidth: '2px',
-        borderColor: config.color,
-        ringColor: config.color,
+        backgroundColor: '#111827',
+        border: `1.5px solid ${isSelected ? config.color : config.borderColor}`,
+        boxShadow: isSelected
+          ? `0 0 20px ${config.glow}, 0 8px 24px rgba(0,0,0,0.4)`
+          : `0 4px 16px rgba(0,0,0,0.3)`,
       }}
       onClick={() =>
         setSelectedNode({
@@ -74,106 +86,100 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
         })
       }
     >
-      {/* Header with Solid Color match */}
+      {/* Header */}
       <div
-        className="px-4 py-2 text-white text-xs font-bold tracking-wide flex items-center justify-between"
+        className="px-3 py-1.5 flex items-center gap-2"
         style={{
-          backgroundColor: config.color,
-          opacity: 0.9,
+          background: `linear-gradient(135deg, ${config.color}, ${config.colorEnd})`,
         }}
       >
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-white opacity-80" />
-          <span className="font-sans uppercase tracker-widest">{config.label}</span>
-        </div>
+        <IconComp className="w-3 h-3 text-white/80" />
+        <span className="text-[9px] font-bold text-white/90 uppercase tracking-[0.15em]">
+          {config.label}
+        </span>
       </div>
 
       {/* Body */}
-      <div className="px-4 py-4 space-y-3">
-        {/* Node Name */}
-        <div>
-          <p className="font-bold text-lg text-[#0b1c2c] leading-tight">
-            {data.name}
-          </p>
-        </div>
+      <div className="px-3 py-2.5 space-y-2">
+        <p className="font-bold text-sm text-white/90 leading-tight">
+          {data.name}
+        </p>
 
-        {/* Details based on type */}
         {data.type === 'service' && (
-          <div className="space-y-2 text-xs">
-            <div className="flex gap-2 text-gray-600">
-              <span className="font-semibold min-w-fit">Language:</span>
+          <div className="space-y-1 text-[10px]">
+            <div className="flex justify-between text-white/35">
               <span>{data.language || 'N/A'}</span>
-            </div>
-            <div className="flex gap-2 text-gray-600">
-              <span className="font-semibold min-w-fit">Port:</span>
-              <span>:{data.port || 8000}</span>
+              <span className="font-mono text-white/25">:{data.port || 8000}</span>
             </div>
             {data.endpoints && data.endpoints.length > 0 && (
-              <div className="pt-2 border-t border-gray-200">
-                <p className="text-gray-700 font-semibold mb-1">Endpoints:</p>
-                {data.endpoints.map((endpoint, i) => (
-                  <p key={i} className="text-gray-600 text-xs">
-                    {endpoint}
-                  </p>
+              <div className="pt-1.5 border-t border-white/[0.06] space-y-0.5">
+                {data.endpoints.slice(0, 2).map((ep, i) => (
+                  <p key={i} className="text-emerald-400/40 font-mono text-[9px] truncate">{ep}</p>
                 ))}
+                {data.endpoints.length > 2 && (
+                  <p className="text-white/15 text-[9px]">+{data.endpoints.length - 2} more</p>
+                )}
               </div>
             )}
           </div>
         )}
 
         {data.type === 'database' && (
-          <div className="space-y-2 text-xs">
-            <div className="flex gap-2 text-gray-600">
-              <span className="font-semibold min-w-fit">Engine:</span>
-              <span>{data.engine || 'PostgreSQL'}</span>
-            </div>
-            {data.collections && data.collections.length > 0 && (
-              <div className="pt-2 border-t border-gray-200">
-                <p className="text-gray-700 font-semibold mb-1">Collections:</p>
-                {data.collections.map((coll, i) => (
-                  <p key={i} className="text-gray-600 text-xs">
-                    {coll}
-                  </p>
+          <div className="space-y-1 text-[10px]">
+            <p className="text-white/35">{data.engine || 'PostgreSQL'}</p>
+            {data.collections && (
+              <div className="pt-1.5 border-t border-white/[0.06] space-y-0.5">
+                {data.collections.slice(0, 2).map((c, i) => (
+                  <p key={i} className="text-amber-400/40 font-mono text-[9px] truncate">{c}</p>
                 ))}
+                {data.collections.length > 2 && (
+                  <p className="text-white/15 text-[9px]">+{data.collections.length - 2} more</p>
+                )}
               </div>
             )}
           </div>
         )}
 
         {data.type === 'queue' && (
-          <div className="space-y-2 text-xs">
-            <div className="flex gap-2 text-gray-600">
-              <span className="font-semibold min-w-fit">Provider:</span>
-              <span>{data.provider || 'Kafka'}</span>
-            </div>
-            {data.topics && data.topics.length > 0 && (
-              <div className="pt-2 border-t border-gray-200">
-                <p className="text-gray-700 font-semibold mb-1">Topics:</p>
-                {data.topics.map((topic, i) => (
-                  <p key={i} className="text-gray-600 text-xs">
-                    {topic}
-                  </p>
+          <div className="space-y-1 text-[10px]">
+            <p className="text-white/35">{data.provider || 'Kafka'}</p>
+            {data.topics && (
+              <div className="pt-1.5 border-t border-white/[0.06] space-y-0.5">
+                {data.topics.slice(0, 2).map((t, i) => (
+                  <p key={i} className="text-purple-400/40 font-mono text-[9px] truncate">{t}</p>
                 ))}
+                {data.topics.length > 2 && (
+                  <p className="text-white/15 text-[9px]">+{data.topics.length - 2} more</p>
+                )}
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Delete Button */}
-      <div className="px-4 pb-3 flex gap-2">
-        <button
-          onClick={() => removeNode(id)}
-          className="flex-1 px-2 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors flex items-center justify-center gap-1 font-semibold"
-        >
-          <Trash2 size={12} />
-          Delete
-        </button>
-      </div>
-
       {/* Connection Ports */}
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{
+          background: config.color,
+          border: '2px solid #111827',
+          width: '9px',
+          height: '9px',
+          boxShadow: `0 0 6px ${config.glow}`,
+        }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        style={{
+          background: config.color,
+          border: '2px solid #111827',
+          width: '9px',
+          height: '9px',
+          boxShadow: `0 0 6px ${config.glow}`,
+        }}
+      />
     </div>
   )
 }

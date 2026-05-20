@@ -5,78 +5,78 @@
 
 :root {
   /* CodeEvo Color System */
-  --primary-black: #0b1c2c;
-  --primary-blue: #004aad;
-  --primary-purple: #cb6ce6;
+  --primary-black: #0a0e1a;
+  --primary-blue: #6c3bf5;
+  --primary-purple: #c74cf0;
   
-  --background: #ffffff;
-  --foreground: #0b1c2c;
-  --card: #f8f9fb;
-  --card-foreground: #0b1c2c;
-  --popover: #ffffff;
-  --popover-foreground: #0b1c2c;
-  --primary: #004aad;
+  --background: #0a0e1a;
+  --foreground: #ffffff;
+  --card: #0d1220;
+  --card-foreground: #ffffff;
+  --popover: #0d1220;
+  --popover-foreground: #ffffff;
+  --primary: #6c3bf5;
   --primary-foreground: #ffffff;
-  --secondary: #e8ecf5;
-  --secondary-foreground: #0b1c2c;
-  --muted: #e8ecf5;
+  --secondary: #1a1f35;
+  --secondary-foreground: #ffffff;
+  --muted: #1a1f35;
   --muted-foreground: #6b7280;
-  --accent: #cb6ce6;
+  --accent: #c74cf0;
   --accent-foreground: #ffffff;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
-  --border: #e5e7eb;
-  --input: #f3f4f6;
-  --ring: #004aad;
-  --chart-1: #004aad;
-  --chart-2: #cb6ce6;
-  --chart-3: #059669;
+  --border: rgba(255,255,255,0.06);
+  --input: #1a1f35;
+  --ring: #6c3bf5;
+  --chart-1: #6c3bf5;
+  --chart-2: #c74cf0;
+  --chart-3: #10b981;
   --chart-4: #f59e0b;
   --chart-5: #3b82f6;
-  --radius: 0.625rem;
-  --sidebar: #f8f9fb;
-  --sidebar-foreground: #0b1c2c;
-  --sidebar-primary: #004aad;
+  --radius: 0.75rem;
+  --sidebar: #0d1220;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #6c3bf5;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #cb6ce6;
+  --sidebar-accent: #c74cf0;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #e5e7eb;
-  --sidebar-ring: #004aad;
+  --sidebar-border: rgba(255,255,255,0.06);
+  --sidebar-ring: #6c3bf5;
 }
 
 .dark {
-  --background: #0b1c2c;
+  --background: #0a0e1a;
   --foreground: #ffffff;
-  --card: #1a2f48;
+  --card: #0d1220;
   --card-foreground: #ffffff;
-  --popover: #0b1c2c;
+  --popover: #0d1220;
   --popover-foreground: #ffffff;
-  --primary: #3b82f6;
-  --primary-foreground: #0b1c2c;
-  --secondary: #1e3a5f;
+  --primary: #6c3bf5;
+  --primary-foreground: #ffffff;
+  --secondary: #1a1f35;
   --secondary-foreground: #ffffff;
-  --muted: #334155;
+  --muted: #1a1f35;
   --muted-foreground: #94a3b8;
-  --accent: #cb6ce6;
-  --accent-foreground: #0b1c2c;
+  --accent: #c74cf0;
+  --accent-foreground: #ffffff;
   --destructive: #ef4444;
-  --destructive-foreground: #0b1c2c;
-  --border: #1e3a5f;
-  --input: #1a2f48;
-  --ring: #3b82f6;
-  --chart-1: #3b82f6;
-  --chart-2: #cb6ce6;
+  --destructive-foreground: #ffffff;
+  --border: rgba(255,255,255,0.06);
+  --input: #1a1f35;
+  --ring: #6c3bf5;
+  --chart-1: #6c3bf5;
+  --chart-2: #c74cf0;
   --chart-3: #10b981;
   --chart-4: #f59e0b;
-  --chart-5: #004aad;
-  --sidebar: #0f172a;
+  --chart-5: #3b82f6;
+  --sidebar: #0d1220;
   --sidebar-foreground: #ffffff;
-  --sidebar-primary: #3b82f6;
-  --sidebar-primary-foreground: #0b1c2c;
-  --sidebar-accent: #cb6ce6;
-  --sidebar-accent-foreground: #0b1c2c;
-  --sidebar-border: #1e3a5f;
-  --sidebar-ring: #3b82f6;
+  --sidebar-primary: #6c3bf5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #c74cf0;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255,255,255,0.06);
+  --sidebar-ring: #6c3bf5;
 }
 
 @theme inline {
@@ -129,23 +129,23 @@
   }
 }
 
-/* ReactFlow Custom Styling */
+/* ReactFlow Custom Styling - Dark Premium Theme */
 .react-flow {
-  background-color: #ffffff;
+  background-color: #0a0e1a;
 }
 
 .react-flow__edge {
-  stroke: #004aad;
+  stroke: #6c3bf5;
   stroke-width: 2;
 }
 
 .react-flow__edge.selected {
-  stroke: #cb6ce6;
+  stroke: #c74cf0;
   stroke-width: 2.5;
 }
 
 .react-flow__edge-path {
-  stroke: #004aad;
+  stroke: #6c3bf5;
 }
 
 .react-flow__node {
@@ -155,15 +155,15 @@
 }
 
 .react-flow__handle {
-  background: #004aad;
-  border: 2px solid white;
-  width: 12px;
-  height: 12px;
-  box-shadow: 0 2px 8px rgba(0, 74, 173, 0.2);
+  background: #6c3bf5;
+  border: 2px solid #111827;
+  width: 10px;
+  height: 10px;
+  box-shadow: 0 0 8px rgba(108, 59, 245, 0.2);
 }
 
 .react-flow__handle.connectable {
-  background: #004aad;
+  background: #6c3bf5;
 }
 
 .react-flow__handle.valid {
@@ -171,26 +171,80 @@
 }
 
 .react-flow__minimap {
-  background-color: white;
+  background-color: #0d1220 !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  border-radius: 12px !important;
+}
+
+.react-flow__minimap-mask {
+  fill: rgba(108, 59, 245, 0.08);
 }
 
 .react-flow__controls {
-  background-color: white;
-  border: 2px solid #004aad;
-  border-radius: 8px;
-  gap: 8px;
-  padding: 8px;
+  background-color: #0d1220 !important;
+  border: 1px solid rgba(255,255,255,0.06) !important;
+  border-radius: 12px !important;
+  gap: 2px;
+  padding: 4px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
 .react-flow__controls button {
-  background-color: white;
-  border: 1px solid #004aad;
-  color: #004aad;
+  background-color: transparent;
+  border: 1px solid rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.4);
   font-weight: 600;
-  border-radius: 4px;
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
 }
 
 .react-flow__controls button:hover {
-  background-color: #004aad;
-  color: white;
+  background-color: rgba(108, 59, 245, 0.15);
+  color: #c4b5fd;
+  border-color: rgba(108, 59, 245, 0.3);
+}
+
+.react-flow__controls button svg {
+  fill: currentColor;
+}
+
+.react-flow__controls button svg path {
+  fill: currentColor;
+}
+
+/* Background dots */
+.react-flow__background {
+  background-color: #0a0e1a;
+}
+
+/* Custom Scrollbar */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.06);
+  border-radius: 99px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+/* Selection styles */
+.react-flow__selection {
+  background: rgba(108, 59, 245, 0.08);
+  border: 1px dashed rgba(108, 59, 245, 0.4);
+}
+
+/* Attribution hide */
+.react-flow__attribution {
+  display: none !important;
+}
+
+/* Smooth transitions for panels */
+aside, nav {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
