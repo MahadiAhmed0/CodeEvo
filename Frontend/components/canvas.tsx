@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import ReactFlow, {
   Node,
   Edge,
@@ -192,11 +192,52 @@ const initialEdges: Edge[] = [
 interface CanvasProps {
   selectedNode?: any
   setSelectedNode?: (node: any) => void
+  projectId?: string
 }
 
-export function Canvas({ selectedNode, setSelectedNode }: CanvasProps) {
+export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }: CanvasProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  
+  // Load saved state on mount or project change
+  useEffect(() => {
+    const savedNodes = localStorage.getItem(`diagram-nodes-${projectId}`)
+    const savedEdges = localStorage.getItem(`diagram-edges-${projectId}`)
+    
+    if (savedNodes) {
+      try {
+        setNodes(JSON.parse(savedNodes))
+      } catch (e) {
+        console.error('Failed to parse nodes:', e)
+      }
+    } else {
+      setNodes(initialNodes)
+    }
+    
+    if (savedEdges) {
+      try {
+        setEdges(JSON.parse(savedEdges))
+      } catch (e) {
+        console.error('Failed to parse edges:', e)
+      }
+    } else {
+      setEdges(initialEdges)
+    }
+  }, [projectId, setNodes, setEdges])
+
+  // Save state on change
+  useEffect(() => {
+    if (nodes.length > 0) {
+      localStorage.setItem(`diagram-nodes-${projectId}`, JSON.stringify(nodes))
+    }
+  }, [nodes, projectId])
+
+  useEffect(() => {
+    if (edges.length > 0) {
+      localStorage.setItem(`diagram-edges-${projectId}`, JSON.stringify(edges))
+    }
+  }, [edges, projectId])
+
   const [showNodeMenu, setShowNodeMenu] = useState(false)
   const [showAPIModal, setShowAPIModal] = useState(false)
   const [viewMode, setViewMode] = useState<'graph' | 'code'>('graph')
@@ -305,6 +346,34 @@ export function Canvas({ selectedNode, setSelectedNode }: CanvasProps) {
     document.body.removeChild(element)
   }
 
+  const importDiagram = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'application/json'
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const content = e.target?.result as string
+          const parsed = JSON.parse(content)
+          if (parsed.nodes && parsed.edges) {
+            setNodes(parsed.nodes)
+            setEdges(parsed.edges)
+          } else {
+            console.error('Invalid format')
+          }
+        } catch (err) {
+          console.error('Failed to read file', err)
+        }
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+  }
+
   return (
     <div className="relative w-full h-full bg-[#0a0e1a]">
       <ReactFlow
@@ -317,6 +386,13 @@ export function Canvas({ selectedNode, setSelectedNode }: CanvasProps) {
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         fitView
+        onInit={(instance) => {
+          setTimeout(() => {
+            // Wait for the AgentChat sidebar animation to finish (takes ~600ms) before fitting
+            // fitView with larger padding automatically zooms out and guarantees it stays perfectly centered
+            instance.fitView({ padding: 0.8, duration: 500 });
+          }, 800);
+        }}
       >
         <Background color="#1a1f35" gap={20} size={1} />
         <Controls
@@ -427,10 +503,23 @@ export function Canvas({ selectedNode, setSelectedNode }: CanvasProps) {
             API Test
           </button>
           <button
+            onClick={importDiagram}
+            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
+          >
+            <Plus size={14} />
+            Import JSON
+          </button>
+          <button
             onClick={exportDiagram}
             className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
           >
             <Download size={14} />
+            Export JSON
+          </button>
+          <button
+            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
+          >
+            <Code2 size={14} />
             Download Code
           </button>
         </div>

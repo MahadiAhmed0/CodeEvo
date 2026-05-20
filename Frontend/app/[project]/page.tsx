@@ -4,9 +4,10 @@ import { Navbar } from '@/components/navbar'
 import { Sidebar } from '@/components/sidebar'
 import { Canvas } from '@/components/canvas'
 import { AgentChat } from '@/components/agent-chat'
-import { useState } from 'react'
+import { useState, use } from 'react'
 
-export default function ProjectPage() {
+export default function ProjectPage({ params }: { params: Promise<{ project: string }> }) {
+  const unwrappedParams = use(params)
   const [selectedNode, setSelectedNode] = useState(null)
   const [agentOpen, setAgentOpen] = useState(true)
 
@@ -17,7 +18,7 @@ export default function ProjectPage() {
         <Sidebar selectedNode={selectedNode} setSelectedNode={setSelectedNode} />
         <main className="flex-1 flex overflow-hidden relative">
           <div className="flex-1 flex flex-col overflow-hidden">
-            <Canvas selectedNode={selectedNode} setSelectedNode={setSelectedNode} />
+            <Canvas selectedNode={selectedNode} setSelectedNode={setSelectedNode} projectId={unwrappedParams.project} />
           </div>
           <AgentChat isOpen={agentOpen} setIsOpen={setAgentOpen} />
         </main>

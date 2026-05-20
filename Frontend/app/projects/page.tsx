@@ -19,21 +19,21 @@ const allProjectsData = Array.from({ length: 25 }, (_, i) => ({
 
 export default function ProjectsPage() {
   const [currentPage, setCurrentPage] = useState(1)
-  const itemsPerPage = 10
+  const itemsPerPage = 9
   
   const totalPages = Math.ceil(allProjectsData.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
   const currentProjects = allProjectsData.slice(startIndex, startIndex + itemsPerPage)
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-[#0a0e1a] text-white">
       <Navbar />
       <main className="flex-1 overflow-auto">
         <div className="max-w-7xl mx-auto p-8">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-4xl font-bold text-[#0b1c2c] mb-2">All Projects</h1>
-              <p className="text-gray-600">Manage and view all your system architecture projects.</p>
+              <h1 className="text-4xl font-bold text-white mb-2">All Projects</h1>
+              <p className="text-white/60">Manage and view all your system architecture projects.</p>
             </div>
           </div>
 
@@ -46,24 +46,24 @@ export default function ProjectsPage() {
                 transition={{ delay: (i % itemsPerPage) * 0.05 }}
               >
                 <Link href={`/${project.id}`}>
-                  <div className="group p-6 rounded-xl bg-white border border-gray-200 hover:border-[#004aad] hover:shadow-lg transition-all cursor-pointer h-full flex flex-col justify-between">
+                  <div className="group p-6 rounded-xl bg-[#0d1220] border border-white/[0.06] hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all cursor-pointer h-full flex flex-col justify-between">
                     <div>
                       <div className="flex items-center justify-between mb-3">
-                        <FolderOpen className="w-8 h-8 text-[#004aad]" />
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${project.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        <FolderOpen className="w-8 h-8 text-purple-400" />
+                        <span className={`px-2 py-1 text-[11px] font-semibold rounded-full ${project.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/[0.04] text-white/40'}`}>
                           {project.status === 'active' ? 'Active' : 'Inactive'}
                         </span>
                       </div>
-                      <h3 className="font-bold text-[#0b1c2c] text-lg mb-2">{project.name}</h3>
-                      <p className="text-sm text-gray-500 mb-4">{project.description}</p>
+                      <h3 className="font-bold text-white text-lg mb-2">{project.name}</h3>
+                      <p className="text-sm text-white/40 mb-4">{project.description}</p>
                     </div>
                     <div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
-                        <span className="flex items-center gap-1"><Zap className="w-4 h-4 text-[#cb6ce6]" /> {project.services} Services</span>
+                      <div className="flex items-center gap-4 text-sm text-white/60 mb-4">
+                        <span className="flex items-center gap-1.5"><Zap className="w-4 h-4 text-[#cb6ce6]" /> {project.services} Services</span>
                       </div>
-                      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                        <span className="text-xs text-gray-400">Updated {project.lastUpdate}</span>
-                        <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#004aad] group-hover:translate-x-1 transition-all" />
+                      <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
+                        <span className="text-[11px] font-medium text-white/30">UPDATED {project.lastUpdate.toUpperCase()}</span>
+                        <ArrowRight className="w-4 h-4 text-white/30 group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
                       </div>
                     </div>
                   </div>
@@ -74,23 +74,23 @@ export default function ProjectsPage() {
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-4 pt-4 border-t border-gray-200">
+            <div className="flex items-center justify-center gap-4 pt-8 border-t border-white/[0.06]">
               <Button 
                 variant="outline"
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="text-[#0b1c2c]"
+                className="bg-transparent text-white border-white/[0.1] hover:bg-white/[0.06] hover:text-white"
               >
                 <ChevronLeft className="w-4 h-4 mr-1" /> Previous
               </Button>
-              <div className="text-sm font-medium text-gray-600">
+              <div className="text-[13px] font-medium text-white/50">
                 Page {currentPage} of {totalPages}
               </div>
               <Button 
                 variant="outline"
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
-                className="text-[#0b1c2c]"
+                className="bg-transparent text-white border-white/[0.1] hover:bg-white/[0.06] hover:text-white"
               >
                 Next <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
