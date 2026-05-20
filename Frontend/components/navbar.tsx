@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { 
@@ -21,7 +22,7 @@ export function Navbar() {
     <nav className="sticky top-0 z-50 border-b border-gray-200 bg-white/80 backdrop-blur-sm">
       <div className="flex items-center justify-between h-16 px-6 gap-4">
         {/* Logo - Bigger */}
-        <div className="flex items-center gap-2 min-w-fit">
+        <Link href="/dashboard" className="flex items-center gap-2 min-w-fit pr-4">
           <div className="relative w-48 h-12">
             <Image 
               src="/logo.png" 
@@ -31,7 +32,7 @@ export function Navbar() {
               priority
             />
           </div>
-        </div>
+        </Link>
 
         {/* Project Selector */}
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors">
@@ -52,10 +53,10 @@ export function Navbar() {
         </div>
 
         {/* Git Branch */}
-        <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
+        <Link href="/git" className="hidden md:flex items-center gap-2 text-sm text-gray-600 hover:bg-gray-100 px-3 py-2 rounded-lg cursor-pointer transition-colors">
           <GitBranch className="w-4 h-4 text-[#004aad]" />
           <span>main</span>
-        </div>
+        </Link>
 
         {/* Actions */}
         <div className="flex items-center gap-2">

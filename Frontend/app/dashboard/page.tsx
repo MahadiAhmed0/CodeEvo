@@ -23,8 +23,11 @@ import {
   GitBranch,
   Zap,
   Plus,
+  ArrowRight,
+  FolderOpen
 } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
 
 const statsData = [
   { label: 'Total Projects', value: '4', icon: '📊', color: '#004aad' },
@@ -38,6 +41,41 @@ const chartData = [
   { month: 'Feb', commits: 19, agents: 5, services: 5 },
   { month: 'Mar', commits: 15, agents: 3, services: 4 },
   { month: 'Apr', commits: 22, agents: 6, services: 7 },
+]
+
+const allProjects = [
+  {
+    id: 'e-commerce-system',
+    name: 'E-Commerce System',
+    description: 'Microservices for online shopping cart and checkout.',
+    services: 8,
+    lastUpdate: '2 hours ago',
+    status: 'active'
+  },
+  {
+    id: 'api-gateway',
+    name: 'API Gateway',
+    description: 'Main entry point routing definitions.',
+    services: 3,
+    lastUpdate: '15 min ago',
+    status: 'active'
+  },
+  {
+    id: 'notification-system',
+    name: 'Notification System',
+    description: 'Email and SMS queue handlers.',
+    services: 4,
+    lastUpdate: '1 day ago',
+    status: 'active'
+  },
+  {
+    id: 'my-first-system',
+    name: 'My First System',
+    description: 'Initial playground and testing.',
+    services: 3,
+    lastUpdate: '3 days ago',
+    status: 'inactive'
+  }
 ]
 
 const recentActivity = [
@@ -85,6 +123,29 @@ export default function DashboardPage() {
               </motion.div>
             ))}
           </div>
+
+          {/* System Tools / Quick Navigation */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mb-8"
+          >
+            <h2 className="text-lg font-semibold text-[#0b1c2c] mb-4">Quick Links</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Link href="/git">
+                <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200 hover:border-[#004aad] hover:bg-blue-50 transition-all cursor-pointer">
+                  <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm">
+                    <GitBranch className="w-6 h-6 text-[#f59e0b]" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-[#0b1c2c]">Git Repository Management</h3>
+                    <p className="text-sm text-gray-500">View commits & history</p>
+                  </div>
+                </div>
+              </Link>
+            </div>
+          </motion.div>
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -150,6 +211,51 @@ export default function DashboardPage() {
               </ResponsiveContainer>
             </motion.div>
           </div>
+
+          {/* Recent Projects Overview */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            className="mb-8"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-[#0b1c2c]">Recent Projects</h2>
+              <Link href="/projects">
+                <Button variant="outline" className="text-[#004aad] border-[#004aad] hover:bg-[#004aad] hover:text-white">
+                  View All Projects
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {allProjects.slice(0, 3).map((project, i) => (
+                <Link href={`/${project.id}`} key={project.id}>
+                  <div className="group p-6 rounded-xl bg-white border border-gray-200 hover:border-[#004aad] hover:shadow-lg transition-all cursor-pointer h-full flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <FolderOpen className="w-8 h-8 text-[#004aad]" />
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${project.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {project.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-[#0b1c2c] text-lg mb-2">{project.name}</h3>
+                      <p className="text-sm text-gray-500 mb-4">{project.description}</p>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-4">
+                        <span className="flex items-center gap-1"><Zap className="w-4 h-4 text-[#cb6ce6]" /> {project.services} Services</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                        <span className="text-xs text-gray-400">Updated {project.lastUpdate}</span>
+                        <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#004aad] group-hover:translate-x-1 transition-all" />
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </motion.div>
 
           {/* Recent Activity */}
           <motion.div
