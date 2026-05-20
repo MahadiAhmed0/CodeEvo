@@ -24,16 +24,18 @@ import {
   Zap,
   Plus,
   ArrowRight,
-  FolderOpen
+  FolderOpen,
+  Server,
+  GitCommit
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 
 const statsData = [
-  { label: 'Total Projects', value: '4', icon: '📊', color: '#004aad' },
-  { label: 'Active Agents', value: '2', icon: '⚡', color: '#cb6ce6' },
-  { label: 'Services Generated', value: '18', icon: '⚙️', color: '#10b981' },
-  { label: 'Git Commits', value: '47', icon: '📝', color: '#f59e0b' },
+  { label: 'Total Projects', value: '4', icon: FolderOpen, color: '#004aad', bg: '#004aad15' },
+  { label: 'Active Agents', value: '2', icon: Zap, color: '#cb6ce6', bg: '#cb6ce615' },
+  { label: 'Services Generated', value: '18', icon: Server, color: '#10b981', bg: '#10b98115' },
+  { label: 'Git Commits', value: '47', icon: GitCommit, color: '#f59e0b', bg: '#f59e0b15' },
 ]
 
 const chartData = [
@@ -118,34 +120,13 @@ export default function DashboardPage() {
                     <p className="text-gray-600 text-sm font-medium mb-2">{stat.label}</p>
                     <p className="text-3xl font-bold text-[#0b1c2c]">{stat.value}</p>
                   </div>
-                  <div className="text-2xl">{stat.icon}</div>
+                  <div className="p-3 rounded-xl" style={{ backgroundColor: stat.bg, color: stat.color }}>
+                    <stat.icon className="w-6 h-6 outline-none" />
+                  </div>
                 </div>
               </motion.div>
             ))}
           </div>
-
-          {/* System Tools / Quick Navigation */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="mb-8"
-          >
-            <h2 className="text-lg font-semibold text-[#0b1c2c] mb-4">Quick Links</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Link href="/git">
-                <div className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 border border-gray-200 hover:border-[#004aad] hover:bg-blue-50 transition-all cursor-pointer">
-                  <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center shadow-sm">
-                    <GitBranch className="w-6 h-6 text-[#f59e0b]" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-[#0b1c2c]">Git Repository Management</h3>
-                    <p className="text-sm text-gray-500">View commits & history</p>
-                  </div>
-                </div>
-              </Link>
-            </div>
-          </motion.div>
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -264,7 +245,15 @@ export default function DashboardPage() {
             transition={{ delay: 0.4 }}
             className="p-6 rounded-xl bg-white border border-gray-200"
           >
-            <h2 className="text-lg font-semibold text-[#0b1c2c] mb-4">Recent Activity</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-[#0b1c2c]">Recent Activity</h2>
+              <Link href="/git">
+                <Button variant="outline" className="text-[#004aad] border-[#004aad] hover:bg-[#004aad] hover:text-white">
+                  View Full Git History
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
             <div className="space-y-3">
               {recentActivity.map((item) => (
                 <div key={item.id} className="flex items-center justify-between p-4 hover:bg-gray-50 rounded-lg transition-colors">
