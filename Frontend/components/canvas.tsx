@@ -19,9 +19,14 @@ import { Download, Plus, Zap, X, Code2, Network } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { APITestingModal } from './api-testing-modal'
 import { CodeViewer } from './code-viewer'
+import { CustomEdge } from './custom-edge'
 
 const nodeTypes = {
   diagram: DiagramNode,
+}
+
+const edgeTypes = {
+  custom: CustomEdge,
 }
 
 const initialNodes: Node[] = [
@@ -102,90 +107,40 @@ const initialEdges: Edge[] = [
     source: '1',
     target: '4',
     label: 'DB-CONN',
+    type: 'custom',
     style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-    labelBgPadding: [12, 6],
-    labelStyle: { 
-      fill: '#fcd34d',
-      fontSize: '11px',
-      fontWeight: '500',
-      fontFamily: 'system-ui, sans-serif',
-      letterSpacing: '0.02em',
-      strokeWidth: 0,
-      stroke: 'none'
-    },
   },
   {
     id: 'e2-5',
     source: '2',
     target: '5',
     label: 'DB-CONN',
+    type: 'custom',
     style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-    labelBgPadding: [12, 6],
-    labelStyle: { 
-      fill: '#fcd34d',
-      fontSize: '11px',
-      fontWeight: '500',
-      fontFamily: 'system-ui, sans-serif',
-      letterSpacing: '0.02em',
-      strokeWidth: 0,
-      stroke: 'none'
-    },
   },
   {
     id: 'e1-2',
     source: '1',
     target: '2',
     label: 'REST API',
+    type: 'custom',
     style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-    labelBgPadding: [12, 6],
-    labelStyle: { 
-      fill: '#6ee7b7',
-      fontSize: '11px',
-      fontWeight: '500',
-      fontFamily: 'system-ui, sans-serif',
-      letterSpacing: '0.02em',
-      strokeWidth: 0,
-      stroke: 'none'
-    },
   },
   {
     id: 'e2-3',
     source: '2',
     target: '3',
     label: 'REST API',
+    type: 'custom',
     style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-    labelBgPadding: [12, 6],
-    labelStyle: { 
-      fill: '#6ee7b7',
-      fontSize: '11px',
-      fontWeight: '500',
-      fontFamily: 'system-ui, sans-serif',
-      letterSpacing: '0.02em',
-      strokeWidth: 0,
-      stroke: 'none'
-    },
   },
   {
     id: 'e2-6',
     source: '2',
     target: '6',
     label: 'EVENTS',
+    type: 'custom',
     style: { stroke: '#c74cf0', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-    labelBgPadding: [12, 6],
-    labelStyle: { 
-      fill: '#f0abfc',
-      fontSize: '11px',
-      fontWeight: '500',
-      fontFamily: 'system-ui, sans-serif',
-      letterSpacing: '0.02em',
-      strokeWidth: 0,
-      stroke: 'none'
-    },
   },
 ]
 
@@ -249,19 +204,9 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         addEdge(
           {
             ...connection,
-            style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
+            type: 'custom',
             label: 'CONNECTION',
-            labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-            labelBgPadding: [12, 6],
-            labelStyle: { 
-              fill: '#c4b5fd',
-              fontSize: '11px',
-              fontWeight: '500',
-              fontFamily: 'system-ui, sans-serif',
-              letterSpacing: '0.02em',
-              strokeWidth: 0,
-              stroke: 'none'
-            },
+            style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
           },
           eds
         )
@@ -385,6 +330,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         onInit={(instance) => {
           setTimeout(() => {
