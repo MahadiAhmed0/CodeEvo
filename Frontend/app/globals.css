@@ -126,8 +126,15 @@
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.1) var(--background);
   }
-  body {
+  html, body {
     @apply bg-background text-foreground;
+    scrollbar-gutter: stable;
+  }
+  
+  /* Prevent layout shifts globally when scrollbars appear/disappear on container elements */
+  .overflow-auto, 
+  .overflow-y-auto {
+    scrollbar-gutter: stable;
   }
 }
 

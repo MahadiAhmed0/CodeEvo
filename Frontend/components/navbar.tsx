@@ -50,9 +50,11 @@ export function Navbar() {
         <div className="flex items-center gap-1.5">
           <NotificationsPopover />
           
-          <button className="p-2 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white/60 transition-all duration-200">
-            <Settings className="w-4 h-4" />
-          </button>
+          <Link href="/settings">
+            <button className="p-2 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white/60 transition-all duration-200">
+              <Settings className="w-4 h-4" />
+            </button>
+          </Link>
 
           {/* Avatar */}
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] flex items-center justify-center text-white text-[11px] font-bold ml-1 cursor-pointer hover:shadow-lg hover:shadow-purple-500/20 transition-all duration-200">
