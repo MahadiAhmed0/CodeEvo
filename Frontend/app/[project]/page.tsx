@@ -5,11 +5,14 @@ import { Sidebar } from '@/components/sidebar'
 import { Canvas } from '@/components/canvas'
 import { AgentChat } from '@/components/agent-chat'
 import { useState, use } from 'react'
+import { useDiagramStore } from '@/lib/store'
 
 export default function ProjectPage({ params }: { params: Promise<{ project: string }> }) {
   const unwrappedParams = use(params)
   const [selectedNode, setSelectedNode] = useState(null)
-  const [agentOpen, setAgentOpen] = useState(true)
+  
+  const agentOpen = useDiagramStore(state => state.isChatbotExpanded)
+  const setAgentOpen = useDiagramStore(state => state.setIsChatbotExpanded)
 
   return (
     <div className="flex flex-col h-screen bg-[#0a0e1a] text-white overflow-hidden">

@@ -43,6 +43,7 @@ interface DiagramStore {
   edges: Edge[]
   selectedNode: Node | null
   apiTesting: APITestingState
+  isChatbotExpanded: boolean
   
   setNodes: (nodes: Node[]) => void
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void
@@ -54,6 +55,7 @@ interface DiagramStore {
   removeEdge: (edgeId: string) => void
   
   setSelectedNode: (node: Node | null) => void
+  setIsChatbotExpanded: (expanded: boolean) => void
   
   setAPITesting: (testing: Partial<APITestingState>) => void
   resetAPITesting: () => void
@@ -76,6 +78,7 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
   edges: [],
   selectedNode: null,
   apiTesting: defaultAPITesting,
+  isChatbotExpanded: true,
 
   setNodes: (nodes) => set({ nodes }),
   updateNodePosition: (nodeId, position) =>
@@ -101,6 +104,7 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
     })),
 
   setSelectedNode: (node) => set({ selectedNode: node }),
+  setIsChatbotExpanded: (expanded) => set({ isChatbotExpanded: expanded }),
 
   setAPITesting: (testing) =>
     set((state) => ({

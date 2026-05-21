@@ -196,7 +196,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
   const [showNodeMenu, setShowNodeMenu] = useState(false)
   const [showAPIModal, setShowAPIModal] = useState(false)
   const [viewMode, setViewMode] = useState<'graph' | 'code'>('graph')
-  const { setSelectedNode: storeSetSelectedNode } = useDiagramStore()
+  const { setSelectedNode: storeSetSelectedNode, isChatbotExpanded } = useDiagramStore()
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -354,7 +354,10 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
             background: '#0d1220',
             border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: '12px',
-            bottom: '76px',
+            bottom: isChatbotExpanded ? '16px' : '76px',
+            right: '16px',
+            margin: 0,
+            transition: 'all 0.3s ease-in-out',
           }}
           position="bottom-right"
           maskColor="rgba(108, 59, 245, 0.08)"
