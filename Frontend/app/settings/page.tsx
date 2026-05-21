@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -21,7 +22,13 @@ import {
 } from 'lucide-react'
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('profile')
+  const searchParams = useSearchParams()
+  const defaultTab = searchParams.get('tab') ?? 'profile'
+  const [activeTab, setActiveTab] = useState(defaultTab)
+
+  useEffect(() => {
+    setActiveTab(defaultTab)
+  }, [defaultTab])
 
   const sections = [
     { id: 'profile', label: 'Profile', icon: User },
