@@ -4,6 +4,13 @@ import { Handle, Position, NodeProps } from 'reactflow'
 import { useDiagramStore } from '@/lib/store'
 import { Server, Network, Database, Layers } from 'lucide-react'
 
+export interface EndpointConfig {
+  path: string
+  method: string
+  description?: string
+  body?: string
+}
+
 interface DiagramNodeProps extends NodeProps {
   data: {
     type: 'service' | 'api' | 'database' | 'queue'
@@ -12,7 +19,7 @@ interface DiagramNodeProps extends NodeProps {
     port?: number
     engine?: string
     provider?: string
-    endpoints?: string[]
+    endpoints?: EndpointConfig[]
     collections?: string[]
     topics?: string[]
   }
@@ -112,9 +119,12 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
               <span className="font-mono text-white/25">:{data.port || 8000}</span>
             </div>
             {data.endpoints && data.endpoints.length > 0 && (
-              <div className="pt-1.5 border-t border-white/[0.06] space-y-0.5">
+              <div className="pt-1.5 border-t border-white/[0.06] space-y-1">
                 {data.endpoints.slice(0, 2).map((ep, i) => (
-                  <p key={i} className="text-emerald-400/40 font-mono text-[9px] truncate">{ep}</p>
+                  <div key={i} className="flex gap-1.5 items-center bg-white/[0.02] p-1 rounded border border-white/[0.04]">
+                    <span className="text-[7px] font-bold px-1 rounded bg-white/10 text-emerald-400">{ep.method}</span>
+                    <p className="text-white/60 font-mono text-[9px] truncate">{ep.path}</p>
+                  </div>
                 ))}
                 {data.endpoints.length > 2 && (
                   <p className="text-white/15 text-[9px]">+{data.endpoints.length - 2} more</p>

@@ -1,15 +1,22 @@
 import { create } from 'zustand'
 
+export interface EndpointConfig {
+  path: string
+  method: string
+  description?: string
+  body?: string
+}
+
 export interface Node {
   id: string
-  type: 'service' | 'database' | 'queue'
+  type: 'service' | 'database' | 'queue' | 'api'
   name: string
   position: { x: number; y: number }
   language?: string
   port?: number
   engine?: string
   provider?: string
-  endpoints?: string[]
+  endpoints?: EndpointConfig[]
   collections?: string[]
   topics?: string[]
 }

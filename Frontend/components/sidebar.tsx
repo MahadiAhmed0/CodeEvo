@@ -283,44 +283,71 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
 
                     {/* Endpoints */}
                     <div>
-                      <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Endpoints</label>
-                      <div className="mt-2 space-y-1.5">
-                        {selectedNode.endpoints?.map((endpoint: string, i: number) => (
-                          <div key={i} className="flex items-center gap-2 group">
-                            <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] rounded-lg border border-white/[0.06] text-[12px] font-mono flex-1">
-                              <span className="text-[10px] text-emerald-500/40 font-sans font-semibold">GET</span>
-                              <input
-                                value={endpoint}
-                                onChange={(e) => {
-                                  const newEndpoints = [...(selectedNode.endpoints || [])]
-                                  newEndpoints[i] = e.target.value
-                                  onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
-                                }}
-                                className="bg-transparent border-none outline-none text-emerald-400/70 w-full placeholder:text-white/20"
-                                placeholder="/api/endpoint"
-                              />
-                            </div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Endpoints</label>
+                        <button
+                          onClick={() => {
+                            const newEndpoints = [...(selectedNode.endpoints || []), { path: '/new-endpoint', method: 'GET', description: '' }]
+                            onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                          }}
+                          className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" /> Add
+                        </button>
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {selectedNode.endpoints?.map((endpoint: any, i: number) => (
+                          <div key={i} className="p-2.5 bg-white/[0.03] rounded-lg border border-white/[0.06] space-y-2 relative group">
                             <button
                               onClick={() => {
                                 const newEndpoints = (selectedNode.endpoints || []).filter((_: any, idx: number) => idx !== i)
                                 onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
                               }}
-                              className="p-2 rounded-lg text-white/20 hover:bg-red-500/10 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                              className="absolute -top-1.5 -right-1.5 bg-[#0d1220] border border-white/[0.06] rounded-full p-0.5 text-white/40 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                             >
-                              <X className="w-3.5 h-3.5" />
+                              <X className="w-3 h-3" />
                             </button>
+
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={endpoint.method || 'GET'}
+                                onChange={(e) => {
+                                  const newEndpoints = [...selectedNode.endpoints]
+                                  newEndpoints[i] = { ...endpoint, method: e.target.value }
+                                  onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                                }}
+                                className="bg-white/[0.04] border border-white/[0.08] rounded text-[10px] text-white/80 font-mono outline-none px-1 py-1"
+                              >
+                                {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => (
+                                  <option key={m} value={m} className="bg-[#0d1220]">{m}</option>
+                                ))}
+                              </select>
+                              <input
+                                value={endpoint.path || ''}
+                                onChange={(e) => {
+                                  const newEndpoints = [...selectedNode.endpoints]
+                                  newEndpoints[i] = { ...endpoint, path: e.target.value }
+                                  onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                                }}
+                                className="bg-transparent border-none outline-none text-emerald-400/70 text-[12px] font-mono flex-1 placeholder:text-white/20"
+                                placeholder="/api/endpoint"
+                              />
+                            </div>
+                            <input
+                              value={endpoint.description || ''}
+                              onChange={(e) => {
+                                const newEndpoints = [...selectedNode.endpoints]
+                                newEndpoints[i] = { ...endpoint, description: e.target.value }
+                                onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                              }}
+                              className="w-full bg-transparent border border-white/[0.04] rounded px-2 py-1 text-[11px] text-white/50 outline-none focus:border-purple-500/30 placeholder:text-white/20"
+                              placeholder="Description logic (optional)"
+                            />
                           </div>
                         ))}
-                        <button
-                          onClick={() => {
-                            const newEndpoints = [...(selectedNode.endpoints || []), '/new-endpoint']
-                            onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
-                          }}
-                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-white/[0.1] text-white/40 text-[11px] font-medium hover:bg-white/[0.04] hover:border-white/[0.2] hover:text-white/60 transition-all duration-200"
-                        >
-                          <Plus className="w-3 h-3" />
-                          Add Endpoint
-                        </button>
+                        {(!selectedNode.endpoints || selectedNode.endpoints.length === 0) && (
+                          <p className="text-[11px] text-white/30 text-center py-2">No endpoints configured</p>
+                        )}
                       </div>
                     </div>
 

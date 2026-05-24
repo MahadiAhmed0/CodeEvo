@@ -47,7 +47,11 @@ const initialNodes: Node[] = [
       name: 'UserService',
       language: 'spring-boot',
       port: 8080,
-      endpoints: ['/users', '/users/{id}', '/users/{id}/profile'],
+      endpoints: [
+        { path: '/users', method: 'GET', description: 'List all users' },
+        { path: '/users/{id}', method: 'GET', description: 'Get a user by ID' },
+        { path: '/users/{id}/profile', method: 'GET', description: 'Get user profile details' }
+      ],
     },
     position: { x: 100, y: 100 },
     type: 'diagram',
@@ -59,7 +63,11 @@ const initialNodes: Node[] = [
       name: 'OrderService',
       language: 'spring-boot',
       port: 8081,
-      endpoints: ['/orders', '/orders/{id}', '/orders/{id}/status'],
+      endpoints: [
+        { path: '/orders', method: 'GET', description: 'List all orders' },
+        { path: '/orders/{id}', method: 'GET', description: 'Get order details' },
+        { path: '/orders/{id}/status', method: 'PUT', description: 'Update order status' }
+      ],
     },
     position: { x: 450, y: 100 },
     type: 'diagram',
@@ -71,7 +79,10 @@ const initialNodes: Node[] = [
       name: 'PaymentService',
       language: 'go',
       port: 9000,
-      endpoints: ['/payments', '/payments/{id}/verify'],
+      endpoints: [
+        { path: '/payments', method: 'POST', description: 'Process a payment' },
+        { path: '/payments/{id}/verify', method: 'POST', description: 'Verify payment status' }
+      ],
     },
     position: { x: 800, y: 100 },
     type: 'diagram',
@@ -351,13 +362,13 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
           name: 'NewService',
           language: 'node.js',
           port: 8000 + nodes.length,
-          endpoints: ['/api/endpoint'],
+          endpoints: [{ path: '/api/endpoint', method: 'GET', description: 'Sample endpoint' }],
         },
         api: {
           name: 'APIGateway',
           language: 'node.js',
           port: 8080,
-          endpoints: ['/api/*'],
+          endpoints: [{ path: '/api/*', method: 'ALL', description: 'Route to internal services' }],
         },
         database: {
           name: 'NewDB',
@@ -393,7 +404,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         name: 'NewService',
         language: 'node.js',
         port: 8000 + nodes.length,
-        endpoints: ['/api/endpoint'],
+        endpoints: [{ path: '/api/endpoint', method: 'GET', description: 'Sample endpoint' }],
       },
       database: {
         name: 'NewDB',
