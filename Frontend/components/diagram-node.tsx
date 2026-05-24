@@ -20,6 +20,7 @@ interface DiagramNodeProps extends NodeProps {
     engine?: string
     provider?: string
     endpoints?: EndpointConfig[]
+    tables?: string[]
     collections?: string[]
     topics?: string[]
   }
@@ -88,6 +89,7 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
           engine: data.engine,
           provider: data.provider,
           endpoints: data.endpoints,
+          tables: data.tables,
           collections: data.collections,
           topics: data.topics,
         })
@@ -137,10 +139,20 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
         {data.type === 'database' && (
           <div className="space-y-1 text-[10px]">
             <p className="text-white/35">{data.engine || 'PostgreSQL'}</p>
-            {data.collections && (
+            {data.tables && (data.engine === 'postgres' || data.engine === 'mysql') && (
+              <div className="pt-1.5 border-t border-white/[0.06] space-y-0.5">
+                {data.tables.slice(0, 2).map((t, i) => (
+                  <p key={`table-${i}`} className="text-amber-400/40 font-mono text-[9px] truncate">{t}</p>
+                ))}
+                {data.tables.length > 2 && (
+                  <p className="text-white/15 text-[9px]">+{data.tables.length - 2} more</p>
+                )}
+              </div>
+            )}
+            {data.collections && data.engine === 'mongodb' && (
               <div className="pt-1.5 border-t border-white/[0.06] space-y-0.5">
                 {data.collections.slice(0, 2).map((c, i) => (
-                  <p key={i} className="text-amber-400/40 font-mono text-[9px] truncate">{c}</p>
+                  <p key={`coll-${i}`} className="text-amber-400/40 font-mono text-[9px] truncate">{c}</p>
                 ))}
                 {data.collections.length > 2 && (
                   <p className="text-white/15 text-[9px]">+{data.collections.length - 2} more</p>

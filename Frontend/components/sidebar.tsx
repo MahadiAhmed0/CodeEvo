@@ -377,23 +377,116 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                     </div>
                     <div>
                       <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Engine</label>
-                      <input
-                        value={selectedNode.engine || ''}
-                        onChange={(e) => onUpdateNode?.(selectedNode.id, { engine: e.target.value })}
-                        className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 transition-all duration-200"
-                      />
+                      <Select 
+                        value={selectedNode.engine || 'postgres'} 
+                        onValueChange={(val) => onUpdateNode?.(selectedNode.id, { engine: val })}
+                      >
+                        <SelectTrigger className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border-white/[0.08] rounded-lg text-[13px] text-white/80 focus:ring-0 focus:ring-offset-0 focus:border-purple-500/30 transition-all duration-200">
+                          <SelectValue placeholder="Select Engine" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0d1220] border-white/[0.08] text-white/80">
+                          <SelectItem value="postgres">PostgreSQL</SelectItem>
+                          <SelectItem value="mysql">MySQL</SelectItem>
+                          <SelectItem value="mongodb">MongoDB</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <div>
-                      <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Collections</label>
-                      <div className="mt-2 space-y-1.5">
-                        {selectedNode.collections?.map((col: string, i: number) => (
-                          <div key={i} className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] rounded-lg border border-white/[0.06] text-[12px] text-white/50">
-                            <Lock className="w-3 h-3 text-amber-400/40" />
-                            {col}
-                          </div>
-                        ))}
+
+                    {(selectedNode.engine === 'postgres' || selectedNode.engine === 'mysql') && (
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Tables</label>
+                          <button
+                            onClick={() => {
+                              const newTables = [...(selectedNode.tables || []), 'new_table']
+                              onUpdateNode?.(selectedNode.id, { tables: newTables })
+                            }}
+                            className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" /> Add
+                          </button>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                          {selectedNode.tables?.map((table: string, i: number) => (
+                            <div key={i} className="flex items-center gap-2 group">
+                              <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] rounded-lg border border-white/[0.06] text-[12px] flex-1">
+                                <Lock className="w-3 h-3 text-amber-400/40" />
+                                <input
+                                  value={table}
+                                  onChange={(e) => {
+                                    const newTables = [...(selectedNode.tables || [])]
+                                    newTables[i] = e.target.value
+                                    onUpdateNode?.(selectedNode.id, { tables: newTables })
+                                  }}
+                                  className="bg-transparent border-none outline-none text-white/80 w-full placeholder:text-white/20 font-mono"
+                                  placeholder="table_name"
+                                />
+                              </div>
+                              <button
+                                onClick={() => {
+                                  const newTables = (selectedNode.tables || []).filter((_: any, idx: number) => idx !== i)
+                                  onUpdateNode?.(selectedNode.id, { tables: newTables })
+                                }}
+                                className="p-2 rounded-lg text-white/20 hover:bg-red-500/10 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          {(!selectedNode.tables || selectedNode.tables.length === 0) && (
+                            <p className="text-[11px] text-white/30 text-center py-2">No tables found</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {selectedNode.engine === 'mongodb' && (
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Collections</label>
+                          <button
+                            onClick={() => {
+                              const newCols = [...(selectedNode.collections || []), 'new_collection']
+                              onUpdateNode?.(selectedNode.id, { collections: newCols })
+                            }}
+                            className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" /> Add
+                          </button>
+                        </div>
+                        <div className="mt-2 space-y-1.5">
+                          {selectedNode.collections?.map((col: string, i: number) => (
+                            <div key={i} className="flex items-center gap-2 group">
+                              <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] rounded-lg border border-white/[0.06] text-[12px] flex-1">
+                                <Lock className="w-3 h-3 text-amber-400/40" />
+                                <input
+                                  value={col}
+                                  onChange={(e) => {
+                                    const newCols = [...(selectedNode.collections || [])]
+                                    newCols[i] = e.target.value
+                                    onUpdateNode?.(selectedNode.id, { collections: newCols })
+                                  }}
+                                  className="bg-transparent border-none outline-none text-white/80 w-full placeholder:text-white/20 font-mono"
+                                  placeholder="collectionName"
+                                />
+                              </div>
+                              <button
+                                onClick={() => {
+                                  const newCols = (selectedNode.collections || []).filter((_: any, idx: number) => idx !== i)
+                                  onUpdateNode?.(selectedNode.id, { collections: newCols })
+                                }}
+                                className="p-2 rounded-lg text-white/20 hover:bg-red-500/10 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          {(!selectedNode.collections || selectedNode.collections.length === 0) && (
+                            <p className="text-[11px] text-white/30 text-center py-2">No collections found</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

@@ -93,7 +93,7 @@ const initialNodes: Node[] = [
       type: 'database',
       name: 'UserDB',
       engine: 'postgres',
-      collections: ['users', 'profiles', 'preferences'],
+      tables: ['users', 'profiles', 'preferences'],
     },
     position: { x: 100, y: 350 },
     type: 'diagram',
@@ -103,7 +103,7 @@ const initialNodes: Node[] = [
     data: {
       type: 'database',
       name: 'OrderDB',
-      engine: 'postgres',
+      engine: 'mongodb',
       collections: ['orders', 'order_items', 'shipments'],
     },
     position: { x: 450, y: 350 },
@@ -248,6 +248,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         engine: node.data.engine,
         provider: node.data.provider,
         endpoints: node.data.endpoints,
+        tables: node.data.tables,
         collections: node.data.collections,
         topics: node.data.topics,
       })
@@ -409,7 +410,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
       database: {
         name: 'NewDB',
         engine: 'postgres',
-        collections: ['table1', 'table2'],
+        tables: ['table1', 'table2'],
       },
       queue: {
         name: 'NewQueue',

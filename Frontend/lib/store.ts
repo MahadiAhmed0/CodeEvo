@@ -17,6 +17,7 @@ export interface Node {
   engine?: string
   provider?: string
   endpoints?: EndpointConfig[]
+  tables?: string[]
   collections?: string[]
   topics?: string[]
 }
