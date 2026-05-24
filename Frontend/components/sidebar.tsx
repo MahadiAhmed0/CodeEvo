@@ -140,6 +140,10 @@ export function Sidebar({ selectedNode, setSelectedNode }: SidebarProps) {
                 <div
                   key={node.id}
                   draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/reactflow', node.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                  }}
                   className="group p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] cursor-grab active:cursor-grabbing transition-all duration-200 hover:bg-white/[0.04]"
                 >
                   <div className="flex items-center gap-3">

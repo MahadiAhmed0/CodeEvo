@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import ReactFlow, {
   Node,
   Edge,
@@ -237,6 +237,70 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
     if (setSelectedNode) setSelectedNode(null)
   }, [setSelectedNode])
 
+  const reactFlowWrapper = useRef<HTMLDivElement>(null)
+  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+  }, [])
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault()
+
+      const type = event.dataTransfer.getData('application/reactflow') as 'service' | 'database' | 'queue' | 'api'
+      if (!type || !reactFlowInstance || !reactFlowWrapper.current) {
+        return
+      }
+
+      const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect()
+      const position = reactFlowInstance.project({
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
+      })
+
+      const newNodeId = String(Math.max(...nodes.map(n => parseInt(n.id) || 0), 0) + 1)
+      const nodeConfig = {
+        service: {
+          name: 'NewService',
+          language: 'node.js',
+          port: 8000 + nodes.length,
+          endpoints: ['/api/endpoint'],
+        },
+        api: {
+          name: 'APIGateway',
+          language: 'node.js',
+          port: 8080,
+          endpoints: ['/api/*'],
+        },
+        database: {
+          name: 'NewDB',
+          engine: 'postgres',
+          collections: ['table1', 'table2'],
+        },
+        queue: {
+          name: 'NewQueue',
+          provider: 'kafka',
+          topics: ['topic.example'],
+        },
+      }
+
+      const newNode: Node = {
+        id: newNodeId,
+        type: 'diagram',
+        position,
+        data: {
+          type,
+          ...(nodeConfig[type] || nodeConfig.service), // fallback to service if api or something else
+        },
+      }
+
+      setNodes((nds) => nds.concat(newNode))
+    },
+    [reactFlowInstance, nodes, setNodes]
+  )
+
   const addNewNode = (type: 'service' | 'database' | 'queue') => {
     const newNodeId = String(Math.max(...nodes.map(n => parseInt(n.id) || 0)) + 1)
     const nodeConfig = {
@@ -320,7 +384,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
   }
 
   return (
-    <div className="relative w-full h-full bg-[#0a0e1a]">
+    <div className="relative w-full h-full bg-[#0a0e1a]" ref={reactFlowWrapper} onDrop={onDrop} onDragOver={onDragOver}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -333,6 +397,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         edgeTypes={edgeTypes}
         fitView
         onInit={(instance) => {
+          setReactFlowInstance(instance)
           setTimeout(() => {
             // Wait for the AgentChat sidebar animation to finish (takes ~600ms) before fitting
             // fitView with larger padding automatically zooms out and guarantees it stays perfectly centered
