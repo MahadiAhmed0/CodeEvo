@@ -20,6 +20,16 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { APITestingModal } from './api-testing-modal'
 import { CodeViewer } from './code-viewer'
 import { CustomEdge } from './custom-edge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const nodeTypes = {
   diagram: DiagramNode,
@@ -239,6 +249,53 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
+  const [nodeToDelete, setNodeToDelete] = useState<string | null>(null)
+
+  const requestDeleteNode = useCallback((nodeId: string) => {
+    setNodeToDelete(nodeId)
+  }, [])
+
+  const confirmDeleteNode = useCallback(() => {
+    if (nodeToDelete) {
+      setNodes((nds) => nds.filter((n) => n.id !== nodeToDelete))
+      setEdges((eds) => eds.filter((e) => e.source !== nodeToDelete && e.target !== nodeToDelete))
+      if (selectedNode?.id === nodeToDelete && setSelectedNode) {
+        setSelectedNode(null)
+      }
+      setNodeToDelete(null)
+    }
+  }, [nodeToDelete, setNodes, setEdges, selectedNode, setSelectedNode])
+
+  const cancelDeleteNode = useCallback(() => {
+    setNodeToDelete(null)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode) {
+        // Prevent deletion if we're focused on an input field
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+          return
+        }
+        requestDeleteNode(selectedNode.id)
+      }
+    }
+
+    const handleDeleteEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: string }>
+      if (customEvent.detail?.id) {
+        requestDeleteNode(customEvent.detail.id)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('delete-diagram-node', handleDeleteEvent)
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('delete-diagram-node', handleDeleteEvent)
+    }
+  }, [selectedNode, requestDeleteNode])
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()
@@ -557,6 +614,32 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         onClose={() => setShowAPIModal(false)}
         selectedNode={selectedNode || nodes[0]}
       />
+
+      {/* Delete Confirmation Modal */}
+      <AlertDialog open={!!nodeToDelete} onOpenChange={(isOpen) => !isOpen && cancelDeleteNode()}>
+        <AlertDialogContent className="bg-[#0d1220] border border-white/[0.08] text-white/90">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Node</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/60">
+              Are you sure you want to delete this node? This action cannot be undone and will remove all connected edges.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={cancelDeleteNode}
+              className="bg-white/[0.04] text-white hover:bg-white/[0.08] border-white/[0.08] hover:text-white"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteNode}
+              className="bg-red-500/80 hover:bg-red-500 text-white border-0"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

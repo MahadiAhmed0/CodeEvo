@@ -18,7 +18,14 @@ export default function ProjectPage({ params }: { params: Promise<{ project: str
     <div className="flex flex-col h-screen bg-[#0a0e1a] text-white overflow-hidden">
       <Navbar />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar selectedNode={selectedNode} setSelectedNode={setSelectedNode} />
+        <Sidebar 
+          selectedNode={selectedNode} 
+          setSelectedNode={setSelectedNode} 
+          onDeleteNode={(id) => {
+            // This will be handled by the Canvas, we trigger it via an event
+            window.dispatchEvent(new CustomEvent('delete-diagram-node', { detail: { id } }))
+          }}
+        />
         <main className="flex-1 flex overflow-hidden relative">
           <div className="flex-1 flex flex-col overflow-hidden">
             <Canvas selectedNode={selectedNode} setSelectedNode={setSelectedNode} projectId={unwrappedParams.project} />

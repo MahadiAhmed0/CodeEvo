@@ -36,9 +36,10 @@ const nodeTypes = [
 interface SidebarProps {
   selectedNode?: any
   setSelectedNode?: (node: any) => void
+  onDeleteNode?: (nodeId: string) => void
 }
 
-export function Sidebar({ selectedNode, setSelectedNode }: SidebarProps) {
+export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode }: SidebarProps) {
   const [expanded, setExpanded] = useState(true)
   const [activeSection, setActiveSection] = useState<'nodes' | 'history' | 'inspector'>('nodes')
 
@@ -332,7 +333,14 @@ export function Sidebar({ selectedNode, setSelectedNode }: SidebarProps) {
                   <Copy className="w-3.5 h-3.5" />
                   Duplicate
                 </button>
-                <button className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-red-500/[0.06] border border-red-500/[0.1] text-red-400/60 text-xs font-medium hover:bg-red-500/[0.12] hover:text-red-400 transition-all duration-200">
+                <button 
+                  onClick={() => {
+                    if (onDeleteNode && selectedNode) {
+                      onDeleteNode(selectedNode.id)
+                    }
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-red-500/[0.06] border border-red-500/[0.1] text-red-400/60 text-xs font-medium hover:bg-red-500/[0.12] hover:text-red-400 transition-all duration-200"
+                >
                   <Trash2 className="w-3.5 h-3.5" />
                   Delete Node
                 </button>
