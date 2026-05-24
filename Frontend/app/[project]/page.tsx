@@ -25,6 +25,9 @@ export default function ProjectPage({ params }: { params: Promise<{ project: str
             // This will be handled by the Canvas, we trigger it via an event
             window.dispatchEvent(new CustomEvent('delete-diagram-node', { detail: { id } }))
           }}
+          onUpdateNode={(id, data) => {
+            window.dispatchEvent(new CustomEvent('update-diagram-node', { detail: { id, data } }))
+          }}
         />
         <main className="flex-1 flex overflow-hidden relative">
           <div className="flex-1 flex flex-col overflow-hidden">

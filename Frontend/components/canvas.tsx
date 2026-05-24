@@ -288,14 +288,42 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
       }
     }
 
+    const handleUpdateEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: string, data: any }>
+      if (customEvent.detail?.id && customEvent.detail?.data) {
+        setNodes((nds) => nds.map((n) => {
+          if (n.id === customEvent.detail.id) {
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                ...customEvent.detail.data
+              }
+            }
+          }
+          return n
+        }))
+        
+        // Ensure this updater is called outside of the setNodes mapping!
+        if (selectedNode?.id === customEvent.detail.id && setSelectedNode) {
+          setSelectedNode({
+            ...selectedNode,
+            ...customEvent.detail.data,
+          })
+        }
+      }
+    }
+
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('delete-diagram-node', handleDeleteEvent)
+    window.addEventListener('update-diagram-node', handleUpdateEvent)
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('delete-diagram-node', handleDeleteEvent)
+      window.removeEventListener('update-diagram-node', handleUpdateEvent)
     }
-  }, [selectedNode, requestDeleteNode])
+  }, [selectedNode, requestDeleteNode, setNodes, setSelectedNode])
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault()

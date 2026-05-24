@@ -25,6 +25,13 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const nodeTypes = [
   { id: 'service', name: 'Service', description: 'Application logic & compute', icon: Server, color: '#6c3bf5', gradient: 'from-[#6c3bf5] to-[#8b5cf6]' },
@@ -37,9 +44,10 @@ interface SidebarProps {
   selectedNode?: any
   setSelectedNode?: (node: any) => void
   onDeleteNode?: (nodeId: string) => void
+  onUpdateNode?: (nodeId: string, data: any) => void
 }
 
-export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode }: SidebarProps) {
+export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateNode }: SidebarProps) {
   const [expanded, setExpanded] = useState(true)
   const [activeSection, setActiveSection] = useState<'nodes' | 'history' | 'inspector'>('nodes')
 
@@ -240,30 +248,79 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode }: Sidebar
                 {/* Configuration Fields */}
                 {selectedNode.type === 'service' && (
                   <div className="space-y-3">
-                    {[
-                      { label: 'Name', value: selectedNode.name },
-                      { label: 'Language', value: selectedNode.language },
-                      { label: 'Port', value: selectedNode.port },
-                    ].map((field) => (
-                      <div key={field.label}>
-                        <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">{field.label}</label>
-                        <input
-                          defaultValue={field.value}
-                          className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
-                        />
-                      </div>
-                    ))}
+                    <div>
+                      <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Name</label>
+                      <input
+                        value={selectedNode.name}
+                        onChange={(e) => onUpdateNode?.(selectedNode.id, { name: e.target.value })}
+                        className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Language</label>
+                      <Select 
+                        value={selectedNode.language || 'go'} 
+                        onValueChange={(val) => onUpdateNode?.(selectedNode.id, { language: val })}
+                      >
+                        <SelectTrigger className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border-white/[0.08] rounded-lg text-[13px] text-white/80 focus:ring-0 focus:ring-offset-0 focus:border-purple-500/30 transition-all duration-200">
+                          <SelectValue placeholder="Select language" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#0d1220] border-white/[0.08] text-white/80">
+                          <SelectItem value="go">Go</SelectItem>
+                          <SelectItem value="spring-boot">Spring Boot</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Port</label>
+                      <input
+                        type="number"
+                        value={selectedNode.port}
+                        onChange={(e) => onUpdateNode?.(selectedNode.id, { port: parseInt(e.target.value) || 0 })}
+                        className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
+                      />
+                    </div>
 
                     {/* Endpoints */}
                     <div>
                       <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Endpoints</label>
                       <div className="mt-2 space-y-1.5">
                         {selectedNode.endpoints?.map((endpoint: string, i: number) => (
-                          <div key={i} className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] rounded-lg border border-white/[0.06] text-[12px] font-mono text-emerald-400/70">
-                            <span className="text-[10px] text-emerald-500/40 font-sans font-semibold">GET</span>
-                            {endpoint}
+                          <div key={i} className="flex items-center gap-2 group">
+                            <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] rounded-lg border border-white/[0.06] text-[12px] font-mono flex-1">
+                              <span className="text-[10px] text-emerald-500/40 font-sans font-semibold">GET</span>
+                              <input
+                                value={endpoint}
+                                onChange={(e) => {
+                                  const newEndpoints = [...(selectedNode.endpoints || [])]
+                                  newEndpoints[i] = e.target.value
+                                  onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                                }}
+                                className="bg-transparent border-none outline-none text-emerald-400/70 w-full placeholder:text-white/20"
+                                placeholder="/api/endpoint"
+                              />
+                            </div>
+                            <button
+                              onClick={() => {
+                                const newEndpoints = (selectedNode.endpoints || []).filter((_: any, idx: number) => idx !== i)
+                                onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                              }}
+                              className="p-2 rounded-lg text-white/20 hover:bg-red-500/10 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         ))}
+                        <button
+                          onClick={() => {
+                            const newEndpoints = [...(selectedNode.endpoints || []), '/new-endpoint']
+                            onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                          }}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-white/[0.1] text-white/40 text-[11px] font-medium hover:bg-white/[0.04] hover:border-white/[0.2] hover:text-white/60 transition-all duration-200"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Add Endpoint
+                        </button>
                       </div>
                     </div>
 
@@ -284,9 +341,18 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode }: Sidebar
                 {selectedNode.type === 'database' && (
                   <div className="space-y-3">
                     <div>
+                      <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Name</label>
+                      <input
+                        value={selectedNode.name}
+                        onChange={(e) => onUpdateNode?.(selectedNode.id, { name: e.target.value })}
+                        className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 transition-all duration-200"
+                      />
+                    </div>
+                    <div>
                       <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Engine</label>
                       <input
-                        defaultValue={selectedNode.engine}
+                        value={selectedNode.engine || ''}
+                        onChange={(e) => onUpdateNode?.(selectedNode.id, { engine: e.target.value })}
                         className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 transition-all duration-200"
                       />
                     </div>
@@ -307,9 +373,18 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode }: Sidebar
                 {selectedNode.type === 'queue' && (
                   <div className="space-y-3">
                     <div>
+                      <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Name</label>
+                      <input
+                        value={selectedNode.name}
+                        onChange={(e) => onUpdateNode?.(selectedNode.id, { name: e.target.value })}
+                        className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 transition-all duration-200"
+                      />
+                    </div>
+                    <div>
                       <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Provider</label>
                       <input
-                        defaultValue={selectedNode.provider}
+                        value={selectedNode.provider || ''}
+                        onChange={(e) => onUpdateNode?.(selectedNode.id, { provider: e.target.value })}
                         className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 transition-all duration-200"
                       />
                     </div>
