@@ -17,7 +17,7 @@ import { DiagramNode } from './diagram-node'
 import { useDiagramStore } from '@/lib/store'
 import { Download, Plus, Zap, X, Code2, Network, Server, Database, Layers, Upload, FileJson, Terminal, Bot } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { APITestingModal } from './api-testing-modal'
+import { APITester } from './api-tester'
 import { CodeViewer } from './code-viewer'
 import { CustomEdge } from './custom-edge'
 import {
@@ -224,8 +224,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
 
   const [showNodeMenu, setShowNodeMenu] = useState(false)
   const [showJsonMenu, setShowJsonMenu] = useState(false)
-  const [showAPIModal, setShowAPIModal] = useState(false)
-  const [viewMode, setViewMode] = useState<'graph' | 'code'>('graph')
+  const [viewMode, setViewMode] = useState<'graph' | 'code' | 'test'>('graph')
   const { setSelectedNode: storeSetSelectedNode, isChatbotExpanded } = useDiagramStore()
 
   const onConnect = useCallback(
@@ -539,25 +538,43 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         />
       </ReactFlow>
 
-      {/* Code View Overlay */}
+      {/* Persistent background — covers graph during code↔test transitions */}
       <AnimatePresence>
-        {viewMode === 'code' && (
-          <CodeViewer nodes={nodes} edges={edges} />
+        {viewMode !== 'graph' && (
+          <motion.div
+            key="overlay-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 bg-[#06080d]"
+          />
         )}
       </AnimatePresence>
 
-      {/* Top Left - Add Node Button */}
+      {/* Code / Test View Overlay */}
+      <AnimatePresence mode="wait">
+        {viewMode === 'code' && (
+          <CodeViewer key="code-view" nodes={nodes} edges={edges} />
+        )}
+        {viewMode === 'test' && (
+          <APITester key="test-view" nodes={nodes} />
+        )}
+      </AnimatePresence>
+
+      {/* Top Toolbar - 3 column layout: Add Node | center controls | Generate Code */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="absolute top-4 left-4 z-10"
+        className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between"
       >
-        <div className="relative">
+        {/* Left - Add Node Button */}
+        <div className="relative shrink-0">
           <button
             onClick={() => setShowNodeMenu(!showNodeMenu)}
-            disabled={viewMode === 'code'}
-            className="px-4 py-2 bg-[#6c3bf5] hover:bg-[#5b2cd6] text-white rounded-full text-[13px] font-semibold flex items-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(108,59,245,0.3)] hover:shadow-[0_0_25px_rgba(108,59,245,0.5)] border border-white/10"
+            disabled={viewMode !== 'graph'}
+            className="px-4 py-2 bg-[#6c3bf5] hover:bg-[#5b2cd6] text-white rounded-full text-[13px] font-semibold flex items-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(108,59,245,0.3)] hover:shadow-[0_0_25px_rgba(108,59,245,0.5)] disabled:hover:shadow-[0_0_15px_rgba(108,59,245,0.3)] border border-white/10"
           >
             <Plus size={16} strokeWidth={2.5} />
             Add Node
@@ -592,43 +609,35 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
             )}
           </AnimatePresence>
         </div>
-      </motion.div>
 
-      {/* Top Right Controls */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="absolute top-4 right-4 flex gap-4 z-10"
-      >
-        {/* View Toggle */}
-        <div className="flex bg-[#0d1220]/90 backdrop-blur-sm p-1 rounded-xl border border-white/[0.08]">
-          <button
-            onClick={() => setViewMode('graph')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'graph' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
-          >
-            <Network size={14} />
-            Graph
-          </button>
-          <button
-            onClick={() => setViewMode('code')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'code' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
-          >
-            <Code2 size={14} />
-            Code
-          </button>
-        </div>
+        {/* Center - View Toggle + JSON + Download Code */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex bg-[#0d1220]/90 backdrop-blur-sm p-1 rounded-xl border border-white/[0.08]">
+            <button
+              onClick={() => setViewMode('graph')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'graph' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
+            >
+              <Network size={14} />
+              Graph
+            </button>
+            <button
+              onClick={() => setViewMode('code')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'code' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
+            >
+              <Code2 size={14} />
+              Code
+            </button>
+            <button
+              onClick={() => setViewMode('test')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'test' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
+            >
+              <Zap size={14} />
+              Test
+            </button>
+          </div>
 
-        {/* Actions */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowAPIModal(true)}
-            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
-          >
-            <Zap size={14} className="text-amber-400/70" />
-            API Test
-          </button>
-          
+          {/* JSON Data */}
           <div className="relative">
             <button
               onClick={() => setShowJsonMenu(!showJsonMenu)}
@@ -668,16 +677,21 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
             </AnimatePresence>
           </div>
 
+          {/* Download Code */}
           <button
             className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
           >
             <Code2 size={14} />
             Download Code
           </button>
-          
+        </div>
+
+        {/* Right - Generate Code Button */}
+        <div className="shrink-0">
           <button
             onClick={() => setViewMode('code')}
-            className="px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white rounded-xl text-[13px] font-semibold flex items-center gap-2 hover:shadow-[0_0_15px_rgba(199,76,240,0.4)] transition-all duration-300 ml-2"
+            disabled={viewMode !== 'graph'}
+            className="px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white rounded-xl text-[13px] font-semibold flex items-center gap-2 hover:shadow-[0_0_15px_rgba(199,76,240,0.4)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
           >
             <Bot size={15} />
             Generate Code
@@ -696,13 +710,6 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         <span className="w-px h-3 bg-white/[0.06]" />
         <span className="font-mono text-purple-400/40">v1.2.0</span>
       </div>
-
-      {/* API Testing Modal */}
-      <APITestingModal 
-        isOpen={showAPIModal} 
-        onClose={() => setShowAPIModal(false)}
-        selectedNode={selectedNode || nodes[0]}
-      />
 
       {/* Delete Confirmation Modal */}
       <AlertDialog open={!!nodeToDelete} onOpenChange={(isOpen) => !isOpen && cancelDeleteNode()}>
