@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useDiagramStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { 
@@ -151,6 +152,7 @@ function TableColumnEditor({ item, itemIndex, itemType, engine, onUpdate }: { it
 }
 
 export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateNode }: SidebarProps) {
+  const { setShowProjectSettings } = useDiagramStore()
   const [expanded, setExpanded] = useState(true)
   const [activeSection, setActiveSection] = useState<'nodes' | 'history' | 'inspector'>('nodes')
 
@@ -341,12 +343,6 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                   >
                     <X className="w-4 h-4" />
                   </button>
-                </div>
-
-                {/* Type Badge */}
-                <div className="px-3 py-2.5 rounded-xl bg-gradient-to-r from-purple-500/[0.06] to-pink-500/[0.06] border border-purple-500/[0.1]">
-                  <p className="text-[10px] text-white/25 uppercase font-semibold tracking-wider">Type</p>
-                  <p className="text-[13px] font-medium text-white/70 capitalize mt-0.5">{selectedNode.type}</p>
                 </div>
 
                 {/* Configuration Fields */}
@@ -1003,7 +999,10 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
       {/* Footer */}
       {!selectedNode && (
         <div className="p-3 border-t border-white/[0.06]">
-          <button className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-white/40 text-xs font-medium hover:bg-white/[0.08] hover:text-white/60 transition-all duration-200">
+          <button 
+            onClick={() => setShowProjectSettings(true)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-white/40 text-xs font-medium hover:bg-white/[0.08] hover:text-white/60 transition-all duration-200"
+          >
             <Settings className="w-3.5 h-3.5" />
             Project Settings
           </button>

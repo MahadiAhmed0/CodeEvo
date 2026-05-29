@@ -97,6 +97,16 @@ export interface APITestingState {
   loading: boolean
 }
 
+export interface ProjectSettings {
+  environmentVariables: Record<string, string>
+  aiApiKeys: {
+    openai?: string
+    anthropic?: string
+    gemini?: string
+    groq?: string
+  }
+}
+
 interface DiagramStore {
   nodes: Node[]
   edges: Edge[]
@@ -104,6 +114,8 @@ interface DiagramStore {
   apiTesting: APITestingState
   isChatbotExpanded: boolean
   viewMode: 'graph' | 'code' | 'test'
+  projectSettings: ProjectSettings
+  showProjectSettings: boolean
   
   setNodes: (nodes: Node[]) => void
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void
@@ -117,6 +129,9 @@ interface DiagramStore {
   setSelectedNode: (node: Node | null) => void
   setIsChatbotExpanded: (expanded: boolean) => void
   setViewMode: (viewMode: 'graph' | 'code' | 'test') => void
+  
+  setProjectSettings: (settings: Partial<ProjectSettings>) => void
+  setShowProjectSettings: (show: boolean) => void
   
   setAPITesting: (testing: Partial<APITestingState>) => void
   resetAPITesting: () => void
@@ -141,6 +156,14 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
   apiTesting: defaultAPITesting,
   isChatbotExpanded: true,
   viewMode: 'graph',
+  projectSettings: {
+    environmentVariables: {
+      'PORT': '8080',
+      'NODE_ENV': 'development',
+    },
+    aiApiKeys: {}
+  },
+  showProjectSettings: false,
 
   setNodes: (nodes) => set({ nodes }),
   updateNodePosition: (nodeId, position) =>
@@ -168,6 +191,9 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
   setSelectedNode: (node) => set({ selectedNode: node }),
   setIsChatbotExpanded: (expanded) => set({ isChatbotExpanded: expanded }),
   setViewMode: (viewMode) => set({ viewMode }),
+
+  setProjectSettings: (projectSettings) => set((state) => ({ projectSettings: { ...state.projectSettings, ...projectSettings } })),
+  setShowProjectSettings: (showProjectSettings) => set({ showProjectSettings }),
 
   setAPITesting: (testing) =>
     set((state) => ({

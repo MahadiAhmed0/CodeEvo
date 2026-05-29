@@ -283,7 +283,10 @@ const FileTreeItem = ({ item, level = 0, onSelectFile, activeFile }: any) => {
   )
 }
 
+import { useDiagramStore } from '@/lib/store'
+
 export function CodeViewer({ nodes, edges }: CodeViewerProps) {
+  const { setShowProjectSettings } = useDiagramStore()
   const fileTree = useMemo(() => generateMockFiles(nodes), [nodes])
   const [activeFile, setActiveFile] = useState<any>(fileTree['system_architecture.json'])
 
@@ -323,7 +326,7 @@ export function CodeViewer({ nodes, edges }: CodeViewerProps) {
         </div>
         <div className="flex items-center gap-3">
           <Play size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300" />
-          <Settings size={14} className="text-gray-400 cursor-pointer hover:text-gray-200" />
+          <Settings onClick={() => setShowProjectSettings(true)} size={14} className="text-gray-400 cursor-pointer hover:text-gray-200" />
         </div>
       </div>
 

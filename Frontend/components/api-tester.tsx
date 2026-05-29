@@ -49,7 +49,10 @@ const methodColors: Record<string, { text: string; bg: string; border: string; b
   PATCH: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', badge: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
 }
 
+import { useDiagramStore } from '@/lib/store'
+
 export function APITester({ nodes }: APITesterProps) {
+  const { setShowProjectSettings } = useDiagramStore()
   const gatewayNodes = nodes.filter((n) => n.data.type === 'api' && n.data.gatewayConfig)
   const [selectedNodeId, setSelectedNodeId] = useState<string>(
     gatewayNodes[0]?.id || ''
@@ -199,7 +202,7 @@ export function APITester({ nodes }: APITesterProps) {
             </div>
           )}
           <Play size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300" onClick={handleSendRequest} />
-          <Settings size={14} className="text-gray-400 cursor-pointer hover:text-gray-200" />
+          <Settings onClick={() => setShowProjectSettings(true)} size={14} className="text-gray-400 cursor-pointer hover:text-gray-200" />
         </div>
       </div>
 

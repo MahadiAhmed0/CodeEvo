@@ -4,6 +4,7 @@ import { Navbar } from '@/components/navbar'
 import { Sidebar } from '@/components/sidebar'
 import { Canvas } from '@/components/canvas'
 import { AgentChat } from '@/components/agent-chat'
+import { ProjectSettingsModal } from '@/components/project-settings-modal'
 import { useState, use } from 'react'
 import { useDiagramStore } from '@/lib/store'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -50,6 +51,7 @@ export default function ProjectPage({ params }: { params: Promise<{ project: str
           <AgentChat isOpen={agentOpen} setIsOpen={setAgentOpen} />
         </main>
       </div>
+      <ProjectSettingsModal />
     </div>
   )
 }
