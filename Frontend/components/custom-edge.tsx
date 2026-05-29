@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-const EDGE_LABELS = ['REST API', 'DB-CONN', 'EVENTS', 'CONNECTION', 'GRPC', 'GRAPHQL']
+const EDGE_LABELS = ['ROUTES', 'REST', 'gRPC', 'GRAPHQL', 'READS/WRITES', 'PUBLISHES', 'SUBSCRIBES', 'CONNECTION']
 
 export function CustomEdge({
   id,
@@ -58,11 +58,11 @@ export function CustomEdge({
             label: newLabel,
             labelStyle: {
               ...(edge.labelStyle as any),
-              fill: newLabel === 'DB-CONN' ? '#fcd34d' : newLabel === 'EVENTS' ? '#f0abfc' : '#6ee7b7',
+              fill: newLabel === 'READS/WRITES' ? '#fcd34d' : newLabel === 'PUBLISHES' || newLabel === 'SUBSCRIBES' ? '#f0abfc' : newLabel === 'ROUTES' || newLabel === 'REST' || newLabel === 'gRPC' || newLabel === 'GRAPHQL' ? '#6ee7b7' : '#c4b5fd',
             },
             style: {
               ...edge.style,
-              stroke: newLabel === 'DB-CONN' ? '#f59e0b' : newLabel === 'EVENTS' ? '#c74cf0' : '#10b981',
+              stroke: newLabel === 'READS/WRITES' ? '#f59e0b' : newLabel === 'PUBLISHES' || newLabel === 'SUBSCRIBES' ? '#c74cf0' : newLabel === 'ROUTES' || newLabel === 'REST' || newLabel === 'gRPC' || newLabel === 'GRAPHQL' ? '#10b981' : '#6c3bf5',
             }
           }
         }

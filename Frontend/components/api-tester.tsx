@@ -50,8 +50,9 @@ const methodColors: Record<string, { text: string; bg: string; border: string; b
 }
 
 export function APITester({ nodes }: APITesterProps) {
+  const gatewayNodes = nodes.filter((n) => n.data.type === 'api' && n.data.gatewayConfig)
   const [selectedNodeId, setSelectedNodeId] = useState<string>(
-    nodes.filter((n) => n.data.type === 'service' || n.type === 'service')[0]?.id || ''
+    gatewayNodes[0]?.id || ''
   )
   const [method, setMethod] = useState('GET')
   const [endpoint, setEndpoint] = useState('/api/health')
@@ -67,17 +68,16 @@ export function APITester({ nodes }: APITesterProps) {
   const [bottomTab, setBottomTab] = useState<'history' | 'console'>('history')
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
-  const serviceNodes = nodes.filter((n) => n.data.type === 'service' || n.type === 'service' || n.data.port)
 
-  // Initialize expanded state for services
-  const toggleServiceExpand = useCallback((nodeId: string) => {
+  // Initialize expanded state for gateways
+  const toggleGatewayExpand = useCallback((nodeId: string) => {
     setExpandedServices(prev => ({ ...prev, [nodeId]: !prev[nodeId] }))
   }, [])
 
-  const selectEndpoint = useCallback((nodeId: string, ep: any) => {
+  const selectRoute = useCallback((nodeId: string, route: any) => {
     setSelectedNodeId(nodeId)
-    setEndpoint(typeof ep === 'string' ? ep : ep.path || '/api/endpoint')
-    setMethod(typeof ep === 'string' ? 'GET' : ep.method || 'GET')
+    setEndpoint(route.pathPrefix || '/api/endpoint')
+    setMethod(route.methods && route.methods.length > 0 && route.methods[0] !== 'ALL' ? route.methods[0] : 'GET')
   }, [])
 
   const handleSendRequest = async () => {
@@ -206,11 +206,11 @@ export function APITester({ nodes }: APITesterProps) {
         {/* ===== LEFT SIDEBAR — Endpoint Explorer (mirrors file explorer) ===== */}
         <div className="w-64 border-r border-white/[0.06] bg-[#0a0e1a]/50 flex flex-col">
           <div className="p-3 text-[11px] font-semibold tracking-wider text-gray-500 uppercase flex items-center justify-between">
-            Endpoints
+            Gateway Routes
             <Search size={12} className="cursor-pointer hover:text-gray-300" />
           </div>
 
-          {/* Service selector */}
+          {/* Gateway selector */}
           <div className="px-3 pb-2">
             <div className="relative">
               <select
@@ -218,10 +218,10 @@ export function APITester({ nodes }: APITesterProps) {
                 onChange={(e) => setSelectedNodeId(e.target.value)}
                 className="w-full appearance-none pl-7 pr-8 py-1.5 bg-white/[0.04] border border-white/[0.08] hover:border-white/[0.12] rounded-lg text-[11px] font-medium text-white/70 outline-none focus:border-purple-500/40 transition-all cursor-pointer"
               >
-                <option value="" disabled className="bg-[#0d1220]">Select a service...</option>
-                {serviceNodes.map((n) => (
+                <option value="" disabled className="bg-[#0d1220]">Select a gateway...</option>
+                {gatewayNodes.map((n) => (
                   <option key={n.id} value={n.id} className="bg-[#0d1220] text-white">
-                    {n.data.name || 'Unnamed Service'} (:{n.data.port || 8080})
+                    {n.data.name || 'Unnamed Gateway'} (:{n.data.port || 8080})
                   </option>
                 ))}
               </select>
@@ -230,44 +230,47 @@ export function APITester({ nodes }: APITesterProps) {
             </div>
           </div>
 
-          {/* Endpoint tree */}
+          {/* Routes tree */}
           <div className="flex-1 overflow-y-auto py-1">
-            {serviceNodes.map((svc) => {
-              const isExpanded = expandedServices[svc.id] !== false
-              const endpoints = svc.data.endpoints || []
+            {gatewayNodes.map((gw) => {
+              const isExpanded = expandedServices[gw.id] !== false
+              const routes = gw.data.gatewayConfig?.routes || []
               return (
-                <div key={svc.id}>
+                <div key={gw.id}>
                   <div
                     className="flex items-center gap-2 py-1.5 px-3 cursor-pointer text-[13px] text-gray-300 hover:text-white hover:bg-white/[0.04] select-none"
-                    onClick={() => toggleServiceExpand(svc.id)}
+                    onClick={() => toggleGatewayExpand(gw.id)}
                   >
                     {isExpanded
                       ? <FolderOpen size={14} className="text-purple-400" />
                       : <Folder size={14} className="text-purple-400/70" />
                     }
-                    <span className="flex-1 truncate">{svc.data.name}</span>
-                    <span className="text-[10px] text-white/20 font-mono">:{svc.data.port}</span>
+                    <span className="flex-1 truncate">{gw.data.name}</span>
+                    <span className="text-[10px] text-white/20 font-mono">:{gw.data.port}</span>
                   </div>
-                  {isExpanded && endpoints.map((ep: any, idx: number) => {
-                    const path = typeof ep === 'string' ? ep : ep.path
-                    const epMethod = typeof ep === 'string' ? 'GET' : (ep.method || 'GET')
-                    const isActive = selectedNodeId === svc.id && endpoint === path && method === epMethod
-                    const mc = methodColors[epMethod] || methodColors.GET
+                  {isExpanded && routes.map((route: any, idx: number) => {
+                    const path = route.pathPrefix
+                    const routeMethod = route.methods && route.methods.length > 0 && route.methods[0] !== 'ALL' ? route.methods[0] : 'GET'
+                    const isActive = selectedNodeId === gw.id && endpoint === path && method === routeMethod
+                    const mc = methodColors[routeMethod] || methodColors.GET
                     return (
                       <div
                         key={idx}
-                        className={`flex items-center gap-2 py-1 px-3 cursor-pointer text-[12px] select-none transition-colors ${
+                        className={`flex flex-col gap-1 py-1.5 px-3 cursor-pointer text-[12px] select-none transition-colors ${
                           isActive
                             ? 'bg-[#1e293b] text-white'
                             : 'text-gray-400 hover:text-white hover:bg-white/[0.04]'
                         }`}
                         style={{ paddingLeft: '28px' }}
-                        onClick={() => selectEndpoint(svc.id, ep)}
+                        onClick={() => selectRoute(gw.id, route)}
                       >
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${mc.badge} shrink-0`}>
-                          {epMethod}
-                        </span>
-                        <span className="truncate font-mono text-[11px]">{path}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${mc.badge} shrink-0`}>
+                            {routeMethod}
+                          </span>
+                          <span className="truncate font-mono text-[11px]">{path}</span>
+                        </div>
+                        <span className="text-[9px] text-white/30 truncate pl-8">→ {route.targetService}:{route.targetPort}</span>
                       </div>
                     )
                   })}
@@ -280,7 +283,7 @@ export function APITester({ nodes }: APITesterProps) {
           <div className="p-3 border-t border-white/[0.06]">
             <div className="flex items-center gap-2 text-[10px] text-white/20">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60" />
-              {serviceNodes.length} services · {serviceNodes.reduce((acc, s) => acc + (s.data.endpoints?.length || 0), 0)} endpoints
+              {gatewayNodes.length} gateways · {gatewayNodes.reduce((acc, g) => acc + (g.data.gatewayConfig?.routes?.length || 0), 0)} routes
             </div>
           </div>
         </div>

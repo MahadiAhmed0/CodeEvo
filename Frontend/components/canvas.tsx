@@ -41,19 +41,41 @@ const edgeTypes = {
 
 const initialNodes: Node[] = [
   {
+    id: '0',
+    data: {
+      type: 'api',
+      name: 'MainGateway',
+      port: 8000,
+      gatewayConfig: {
+        platform: 'express-proxy',
+        routes: [
+          { id: 'r1', pathPrefix: '/api/users', targetService: 'UserService', targetPort: 8080, methods: ['ALL'], stripPrefix: true },
+          { id: 'r2', pathPrefix: '/api/orders', targetService: 'OrderService', targetPort: 8081, methods: ['ALL'], stripPrefix: true },
+          { id: 'r3', pathPrefix: '/api/payments', targetService: 'PaymentService', targetPort: 9000, methods: ['POST'], stripPrefix: false }
+        ],
+        auth: { enabled: true, type: 'jwt' },
+        rateLimit: { enabled: true, requestsPerMinute: 100 },
+        cors: { enabled: true, allowedOrigins: ['https://codeevo.com'] },
+      },
+    },
+    position: { x: 450, y: 50 },
+    type: 'diagram',
+  },
+  {
     id: '1',
     data: {
       type: 'service',
       name: 'UserService',
       language: 'spring-boot',
       port: 8080,
-      endpoints: [
-        { path: '/users', method: 'GET', description: 'List all users' },
-        { path: '/users/{id}', method: 'GET', description: 'Get a user by ID' },
-        { path: '/users/{id}/profile', method: 'GET', description: 'Get user profile details' }
+      methods: [
+        { name: 'createUser', description: 'Register a new user account', type: 'mutation' },
+        { name: 'getUserById', description: 'Fetch user details by ID', type: 'query' },
+        { name: 'updateProfile', description: 'Update user profile data', type: 'mutation' }
       ],
+      externalAPIs: [],
     },
-    position: { x: 100, y: 100 },
+    position: { x: 100, y: 250 },
     type: 'diagram',
   },
   {
@@ -63,13 +85,14 @@ const initialNodes: Node[] = [
       name: 'OrderService',
       language: 'spring-boot',
       port: 8081,
-      endpoints: [
-        { path: '/orders', method: 'GET', description: 'List all orders' },
-        { path: '/orders/{id}', method: 'GET', description: 'Get order details' },
-        { path: '/orders/{id}/status', method: 'PUT', description: 'Update order status' }
+      methods: [
+        { name: 'createOrder', description: 'Place a new order', type: 'mutation' },
+        { name: 'getOrderDetails', description: 'Fetch order by ID', type: 'query' },
+        { name: 'onPaymentProcessed', description: 'Handle payment confirmation event', type: 'handler' }
       ],
+      externalAPIs: [],
     },
-    position: { x: 450, y: 100 },
+    position: { x: 450, y: 250 },
     type: 'diagram',
   },
   {
@@ -79,12 +102,16 @@ const initialNodes: Node[] = [
       name: 'PaymentService',
       language: 'go',
       port: 9000,
-      endpoints: [
-        { path: '/payments', method: 'POST', description: 'Process a payment' },
-        { path: '/payments/{id}/verify', method: 'POST', description: 'Verify payment status' }
+      methods: [
+        { name: 'processPayment', description: 'Charge customer via payment provider', type: 'mutation' },
+        { name: 'verifyPayment', description: 'Verify payment status with provider', type: 'query' },
+        { name: 'refundPayment', description: 'Issue a refund to customer', type: 'mutation' }
+      ],
+      externalAPIs: [
+        { name: 'Stripe', baseUrl: 'https://api.stripe.com/v1', description: 'Payment processing' }
       ],
     },
-    position: { x: 800, y: 100 },
+    position: { x: 800, y: 250 },
     type: 'diagram',
   },
   {
@@ -99,7 +126,7 @@ const initialNodes: Node[] = [
         { name: 'preferences', columns: [{ name: 'id', type: 'uuid' }, { name: 'theme', type: 'varchar' }] }
       ] as any[],
     },
-    position: { x: 100, y: 350 },
+    position: { x: 100, y: 500 },
     type: 'diagram',
   },
   {
@@ -114,7 +141,7 @@ const initialNodes: Node[] = [
         { name: 'shipments', columns: [{ name: '_id', type: 'ObjectId' }, { name: 'tracking_id', type: 'String' }] }
       ] as any[],
     },
-    position: { x: 450, y: 350 },
+    position: { x: 450, y: 500 },
     type: 'diagram',
   },
   {
@@ -125,17 +152,41 @@ const initialNodes: Node[] = [
       provider: 'kafka',
       topics: ['order.created', 'payment.processed', 'user.registered'],
     },
-    position: { x: 800, y: 350 },
+    position: { x: 800, y: 500 },
     type: 'diagram',
   },
 ]
 
 const initialEdges: Edge[] = [
   {
+    id: 'e0-1',
+    source: '0',
+    target: '1',
+    label: 'ROUTES',
+    type: 'custom',
+    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
+  },
+  {
+    id: 'e0-2',
+    source: '0',
+    target: '2',
+    label: 'ROUTES',
+    type: 'custom',
+    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
+  },
+  {
+    id: 'e0-3',
+    source: '0',
+    target: '3',
+    label: 'ROUTES',
+    type: 'custom',
+    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
+  },
+  {
     id: 'e1-4',
     source: '1',
     target: '4',
-    label: 'DB-CONN',
+    label: 'READS/WRITES',
     type: 'custom',
     style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
   },
@@ -143,7 +194,7 @@ const initialEdges: Edge[] = [
     id: 'e2-5',
     source: '2',
     target: '5',
-    label: 'DB-CONN',
+    label: 'READS/WRITES',
     type: 'custom',
     style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
   },
@@ -151,7 +202,7 @@ const initialEdges: Edge[] = [
     id: 'e1-2',
     source: '1',
     target: '2',
-    label: 'REST API',
+    label: 'REST',
     type: 'custom',
     style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
   },
@@ -159,7 +210,7 @@ const initialEdges: Edge[] = [
     id: 'e2-3',
     source: '2',
     target: '3',
-    label: 'REST API',
+    label: 'REST',
     type: 'custom',
     style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
   },
@@ -167,7 +218,7 @@ const initialEdges: Edge[] = [
     id: 'e2-6',
     source: '2',
     target: '6',
-    label: 'EVENTS',
+    label: 'PUBLISHES',
     type: 'custom',
     style: { stroke: '#c74cf0', strokeDasharray: '4,4', strokeWidth: 1.5 },
   },
@@ -255,10 +306,12 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         port: node.data.port,
         engine: node.data.engine,
         provider: node.data.provider,
-        endpoints: node.data.endpoints,
+        methods: node.data.methods,
+        externalAPIs: node.data.externalAPIs,
         tables: node.data.tables,
         collections: node.data.collections,
         topics: node.data.topics,
+        gatewayConfig: node.data.gatewayConfig,
       })
     }
   }, [setSelectedNode])
@@ -371,13 +424,19 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
           name: 'NewService',
           language: 'node.js',
           port: 8000 + nodes.length,
-          endpoints: [{ path: '/api/endpoint', method: 'GET', description: 'Sample endpoint' }],
+          methods: [{ name: 'handleRequest', description: 'Process incoming request', type: 'mutation' as const }],
+          externalAPIs: [],
         },
         api: {
           name: 'APIGateway',
-          language: 'node.js',
           port: 8080,
-          endpoints: [{ path: '/api/*', method: 'ALL', description: 'Route to internal services' }],
+          gatewayConfig: {
+            platform: 'express-proxy' as const,
+            routes: [],
+            auth: { enabled: false, type: 'none' as const },
+            rateLimit: { enabled: false, requestsPerMinute: 100 },
+            cors: { enabled: true, allowedOrigins: ['*'] },
+          },
         },
         database: {
           name: 'NewDB',
@@ -406,14 +465,26 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
     [reactFlowInstance, nodes, setNodes]
   )
 
-  const addNewNode = (type: 'service' | 'database' | 'queue') => {
+  const addNewNode = (type: 'service' | 'database' | 'queue' | 'api') => {
     const newNodeId = String(Math.max(...nodes.map(n => parseInt(n.id) || 0)) + 1)
     const nodeConfig = {
       service: {
         name: 'NewService',
         language: 'node.js',
         port: 8000 + nodes.length,
-        endpoints: [{ path: '/api/endpoint', method: 'GET', description: 'Sample endpoint' }],
+        methods: [{ name: 'handleRequest', description: 'Process incoming request', type: 'mutation' as const }],
+        externalAPIs: [],
+      },
+      api: {
+        name: 'APIGateway',
+        port: 8080,
+        gatewayConfig: {
+          platform: 'express-proxy' as const,
+          routes: [],
+          auth: { enabled: false, type: 'none' as const },
+          rateLimit: { enabled: false, requestsPerMinute: 100 },
+          cors: { enabled: true, allowedOrigins: ['*'] },
+        },
       },
       database: {
         name: 'NewDB',

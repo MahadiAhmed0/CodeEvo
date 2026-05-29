@@ -17,6 +17,44 @@ export interface TableConfig {
   columns: ColumnConfig[]
 }
 
+export interface GatewayRoute {
+  id: string
+  pathPrefix: string
+  targetService: string
+  targetPort: number
+  methods: string[]
+  stripPrefix: boolean
+}
+
+export interface GatewayConfig {
+  platform: 'nginx' | 'express-proxy' | 'spring-cloud-gateway'
+  routes: GatewayRoute[]
+  auth: {
+    enabled: boolean
+    type: 'jwt' | 'api-key' | 'none'
+  }
+  rateLimit: {
+    enabled: boolean
+    requestsPerMinute: number
+  }
+  cors: {
+    enabled: boolean
+    allowedOrigins: string[]
+  }
+}
+
+export interface ServiceMethod {
+  name: string
+  description: string
+  type: 'query' | 'mutation' | 'handler'
+}
+
+export interface ExternalAPI {
+  name: string
+  baseUrl: string
+  description: string
+}
+
 export interface Node {
   id: string
   type: 'service' | 'database' | 'queue' | 'api'
@@ -27,9 +65,12 @@ export interface Node {
   engine?: string
   provider?: string
   endpoints?: EndpointConfig[]
+  methods?: ServiceMethod[]
+  externalAPIs?: ExternalAPI[]
   tables?: TableConfig[] | any[]
   collections?: TableConfig[] | any[]
   topics?: string[]
+  gatewayConfig?: GatewayConfig
 }
 
 export interface Edge {

@@ -1,8 +1,8 @@
 'use client'
 
 import { Handle, Position, NodeProps } from 'reactflow'
-import { useDiagramStore } from '@/lib/store'
-import { Server, Network, Database, Layers } from 'lucide-react'
+import { useDiagramStore, GatewayConfig, ServiceMethod, ExternalAPI } from '@/lib/store'
+import { Server, Network, Database, Layers, Shield, Gauge, Globe, ExternalLink } from 'lucide-react'
 
 export interface EndpointConfig {
   path: string
@@ -20,9 +20,12 @@ interface DiagramNodeProps extends NodeProps {
     engine?: string
     provider?: string
     endpoints?: EndpointConfig[]
+    methods?: ServiceMethod[]
+    externalAPIs?: ExternalAPI[]
     tables?: string[]
     collections?: string[]
     topics?: string[]
+    gatewayConfig?: GatewayConfig
   }
 }
 
@@ -120,19 +123,71 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
               <span>{data.language || 'N/A'}</span>
               <span className="font-mono text-white/25">:{data.port || 8000}</span>
             </div>
-            {data.endpoints && data.endpoints.length > 0 && (
+            {data.methods && data.methods.length > 0 && (
               <div className="pt-1.5 border-t border-white/[0.06] space-y-1">
-                {data.endpoints.slice(0, 2).map((ep, i) => (
-                  <div key={i} className="flex gap-1.5 items-center bg-white/[0.02] p-1 rounded border border-white/[0.04]">
-                    <span className="text-[7px] font-bold px-1 rounded bg-white/10 text-emerald-400">{ep.method}</span>
-                    <p className="text-white/60 font-mono text-[9px] truncate">{ep.path}</p>
-                  </div>
-                ))}
-                {data.endpoints.length > 2 && (
-                  <p className="text-white/15 text-[9px]">+{data.endpoints.length - 2} more</p>
+                {data.methods.slice(0, 3).map((m, i) => {
+                  const badge = m.type === 'query' ? 'Q' : m.type === 'mutation' ? 'M' : 'H'
+                  const badgeColor = m.type === 'query' ? 'text-blue-400 bg-blue-500/15' : m.type === 'mutation' ? 'text-amber-400 bg-amber-500/15' : 'text-purple-400 bg-purple-500/15'
+                  return (
+                    <div key={i} className="flex gap-1.5 items-center bg-white/[0.02] p-1 rounded border border-white/[0.04]">
+                      <span className={`text-[7px] font-bold px-1 rounded ${badgeColor}`}>{badge}</span>
+                      <p className="text-white/50 text-[9px] truncate">{m.name}()</p>
+                    </div>
+                  )
+                })}
+                {data.methods.length > 3 && (
+                  <p className="text-white/15 text-[9px]">+{data.methods.length - 3} more</p>
                 )}
               </div>
             )}
+            {data.externalAPIs && data.externalAPIs.length > 0 && (
+              <div className="flex items-center gap-1 pt-1">
+                <span className="flex items-center gap-0.5 text-[7px] font-bold px-1 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                  <ExternalLink className="w-2 h-2" />{data.externalAPIs.length} ext API{data.externalAPIs.length > 1 ? 's' : ''}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {data.type === 'api' && data.gatewayConfig && (
+          <div className="space-y-1.5 text-[10px]">
+            <div className="flex justify-between text-white/35">
+              <span className="capitalize">{data.gatewayConfig.platform.replace('-', ' ')}</span>
+              <span className="font-mono text-white/25">:{data.port || 8080}</span>
+            </div>
+            {data.gatewayConfig.routes.length > 0 ? (
+              <div className="pt-1.5 border-t border-white/[0.06] space-y-1">
+                {data.gatewayConfig.routes.slice(0, 2).map((route, i) => (
+                  <div key={i} className="flex gap-1.5 items-center bg-white/[0.02] p-1 rounded border border-white/[0.04]">
+                    <span className="text-[7px] font-bold px-1 rounded bg-emerald-500/15 text-emerald-400 shrink-0">→</span>
+                    <p className="text-white/50 font-mono text-[9px] truncate">{route.pathPrefix}</p>
+                  </div>
+                ))}
+                {data.gatewayConfig.routes.length > 2 && (
+                  <p className="text-white/15 text-[9px]">+{data.gatewayConfig.routes.length - 2} more routes</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-white/15 text-[9px] pt-1 border-t border-white/[0.06]">No routes configured</p>
+            )}
+            <div className="flex gap-1 pt-1">
+              {data.gatewayConfig.auth.enabled && (
+                <span className="flex items-center gap-0.5 text-[7px] font-bold px-1 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <Shield className="w-2 h-2" />Auth
+                </span>
+              )}
+              {data.gatewayConfig.rateLimit.enabled && (
+                <span className="flex items-center gap-0.5 text-[7px] font-bold px-1 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <Gauge className="w-2 h-2" />Rate
+                </span>
+              )}
+              {data.gatewayConfig.cors.enabled && (
+                <span className="flex items-center gap-0.5 text-[7px] font-bold px-1 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                  <Globe className="w-2 h-2" />CORS
+                </span>
+              )}
+            </div>
           </div>
         )}
 

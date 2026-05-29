@@ -25,6 +25,9 @@ import {
   X,
   PanelLeftClose,
   PanelLeftOpen,
+  Shield,
+  Gauge,
+  Globe,
 } from 'lucide-react'
 import {
   Select,
@@ -323,6 +326,7 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] flex items-center justify-center">
                       {selectedNode.type === 'service' && <Server className="w-4 h-4 text-white" />}
+                      {selectedNode.type === 'api' && <Network className="w-4 h-4 text-white" />}
                       {selectedNode.type === 'database' && <Database className="w-4 h-4 text-white" />}
                       {selectedNode.type === 'queue' && <Layers className="w-4 h-4 text-white" />}
                     </div>
@@ -381,14 +385,14 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                       />
                     </div>
 
-                    {/* Endpoints */}
+                    {/* Methods */}
                     <div>
                       <div className="flex items-center justify-between">
-                        <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Endpoints</label>
+                        <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Methods</label>
                         <button
                           onClick={() => {
-                            const newEndpoints = [...(selectedNode.endpoints || []), { path: '/new-endpoint', method: 'GET', description: '' }]
-                            onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                            const newMethods = [...(selectedNode.methods || []), { name: 'newMethod', type: 'query', description: '' }]
+                            onUpdateNode?.(selectedNode.id, { methods: newMethods })
                           }}
                           className="text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1"
                         >
@@ -396,12 +400,12 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                         </button>
                       </div>
                       <div className="mt-2 space-y-2">
-                        {selectedNode.endpoints?.map((endpoint: any, i: number) => (
+                        {selectedNode.methods?.map((method: any, i: number) => (
                           <div key={i} className="p-2.5 bg-white/[0.03] rounded-lg border border-white/[0.06] space-y-2 relative group">
                             <button
                               onClick={() => {
-                                const newEndpoints = (selectedNode.endpoints || []).filter((_: any, idx: number) => idx !== i)
-                                onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                                const newMethods = (selectedNode.methods || []).filter((_: any, idx: number) => idx !== i)
+                                onUpdateNode?.(selectedNode.id, { methods: newMethods })
                               }}
                               className="absolute -top-1.5 -right-1.5 bg-[#0d1220] border border-white/[0.06] rounded-full p-0.5 text-white/40 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                             >
@@ -410,44 +414,112 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
 
                             <div className="flex items-center gap-2">
                               <select
-                                value={endpoint.method || 'GET'}
+                                value={method.type || 'query'}
                                 onChange={(e) => {
-                                  const newEndpoints = [...selectedNode.endpoints]
-                                  newEndpoints[i] = { ...endpoint, method: e.target.value }
-                                  onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                                  const newMethods = [...selectedNode.methods]
+                                  newMethods[i] = { ...method, type: e.target.value }
+                                  onUpdateNode?.(selectedNode.id, { methods: newMethods })
                                 }}
-                                className="bg-white/[0.04] border border-white/[0.08] rounded text-[10px] text-white/80 font-mono outline-none px-1 py-1"
+                                className={`border border-white/[0.08] rounded text-[10px] font-mono outline-none px-1 py-1 ${
+                                  method.type === 'mutation' ? 'text-amber-400 bg-amber-500/10' :
+                                  method.type === 'handler' ? 'text-purple-400 bg-purple-500/10' :
+                                  'text-blue-400 bg-blue-500/10'
+                                }`}
                               >
-                                {['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].map(m => (
-                                  <option key={m} value={m} className="bg-[#0d1220]">{m}</option>
-                                ))}
+                                <option value="query" className="bg-[#0d1220] text-blue-400">Query</option>
+                                <option value="mutation" className="bg-[#0d1220] text-amber-400">Mutation</option>
+                                <option value="handler" className="bg-[#0d1220] text-purple-400">Handler</option>
                               </select>
                               <input
-                                value={endpoint.path || ''}
+                                value={method.name || ''}
                                 onChange={(e) => {
-                                  const newEndpoints = [...selectedNode.endpoints]
-                                  newEndpoints[i] = { ...endpoint, path: e.target.value }
-                                  onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                                  const newMethods = [...selectedNode.methods]
+                                  newMethods[i] = { ...method, name: e.target.value }
+                                  onUpdateNode?.(selectedNode.id, { methods: newMethods })
                                 }}
                                 className="bg-transparent border-none outline-none text-emerald-400/70 text-[12px] font-mono flex-1 placeholder:text-white/20"
-                                placeholder="/api/endpoint"
+                                placeholder="methodName"
                               />
                             </div>
                             <input
-                              value={endpoint.description || ''}
+                              value={method.description || ''}
                               onChange={(e) => {
-                                const newEndpoints = [...selectedNode.endpoints]
-                                newEndpoints[i] = { ...endpoint, description: e.target.value }
-                                onUpdateNode?.(selectedNode.id, { endpoints: newEndpoints })
+                                const newMethods = [...selectedNode.methods]
+                                newMethods[i] = { ...method, description: e.target.value }
+                                onUpdateNode?.(selectedNode.id, { methods: newMethods })
                               }}
                               className="w-full bg-transparent border border-white/[0.04] rounded px-2 py-1 text-[11px] text-white/50 outline-none focus:border-purple-500/30 placeholder:text-white/20"
                               placeholder="Description logic (optional)"
                             />
                           </div>
                         ))}
-                        {(!selectedNode.endpoints || selectedNode.endpoints.length === 0) && (
-                          <p className="text-[11px] text-white/30 text-center py-2">No endpoints configured</p>
+                        {(!selectedNode.methods || selectedNode.methods.length === 0) && (
+                          <p className="text-[11px] text-white/30 text-center py-2">No methods configured</p>
                         )}
+                      </div>
+                    </div>
+
+                    {/* External APIs */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">External APIs</label>
+                        <button
+                          onClick={() => {
+                            const newApis = [...(selectedNode.externalAPIs || []), { name: 'NewAPI', baseUrl: 'https://api.example.com', description: '' }]
+                            onUpdateNode?.(selectedNode.id, { externalAPIs: newApis })
+                          }}
+                          className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" /> Add
+                        </button>
+                      </div>
+                      <div className="mt-2 space-y-2">
+                        {selectedNode.externalAPIs?.map((api: any, i: number) => (
+                          <div key={i} className="p-2.5 bg-white/[0.03] rounded-lg border border-white/[0.06] space-y-2 relative group">
+                            <button
+                              onClick={() => {
+                                const newApis = (selectedNode.externalAPIs || []).filter((_: any, idx: number) => idx !== i)
+                                onUpdateNode?.(selectedNode.id, { externalAPIs: newApis })
+                              }}
+                              className="absolute -top-1.5 -right-1.5 bg-[#0d1220] border border-white/[0.06] rounded-full p-0.5 text-white/40 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+
+                            <div>
+                              <input
+                                value={api.name || ''}
+                                onChange={(e) => {
+                                  const newApis = [...selectedNode.externalAPIs]
+                                  newApis[i] = { ...api, name: e.target.value }
+                                  onUpdateNode?.(selectedNode.id, { externalAPIs: newApis })
+                                }}
+                                className="w-full bg-transparent border-none outline-none text-cyan-400 text-[12px] font-medium placeholder:text-white/20 mb-1"
+                                placeholder="API Name (e.g. Stripe)"
+                              />
+                              <input
+                                value={api.baseUrl || ''}
+                                onChange={(e) => {
+                                  const newApis = [...selectedNode.externalAPIs]
+                                  newApis[i] = { ...api, baseUrl: e.target.value }
+                                  onUpdateNode?.(selectedNode.id, { externalAPIs: newApis })
+                                }}
+                                className="w-full bg-black/20 border border-white/[0.04] rounded px-2 py-1 text-[10px] text-white/60 font-mono outline-none focus:border-cyan-500/30 placeholder:text-white/20"
+                                placeholder="https://api.example.com"
+                              />
+                            </div>
+                            <input
+                              value={api.description || ''}
+                              onChange={(e) => {
+                                const newApis = [...selectedNode.externalAPIs]
+                                newApis[i] = { ...api, description: e.target.value }
+                                onUpdateNode?.(selectedNode.id, { externalAPIs: newApis })
+                              }}
+                              className="w-full bg-transparent border border-white/[0.04] rounded px-2 py-1 text-[11px] text-white/50 outline-none focus:border-cyan-500/30 placeholder:text-white/20"
+                              placeholder="Description (optional)"
+                            />
+                          </div>
+                        ))}
                       </div>
                     </div>
 
@@ -604,6 +676,305 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                     </div>
                   </div>
                 )}
+
+                {selectedNode.type === 'api' && (() => {
+                  const gw = selectedNode.gatewayConfig || {
+                    platform: 'express-proxy',
+                    routes: [],
+                    auth: { enabled: false, type: 'none' },
+                    rateLimit: { enabled: false, requestsPerMinute: 100 },
+                    cors: { enabled: true, allowedOrigins: ['*'] },
+                  }
+                  return (
+                    <div className="space-y-4">
+                      {/* Name */}
+                      <div>
+                        <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Name</label>
+                        <input
+                          value={selectedNode.name}
+                          onChange={(e) => onUpdateNode?.(selectedNode.id, { name: e.target.value })}
+                          className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 transition-all duration-200"
+                        />
+                      </div>
+
+                      {/* Port */}
+                      <div>
+                        <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Port</label>
+                        <input
+                          type="number"
+                          value={selectedNode.port || 8080}
+                          onChange={(e) => onUpdateNode?.(selectedNode.id, { port: parseInt(e.target.value) || 8080 })}
+                          className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 transition-all duration-200"
+                        />
+                      </div>
+
+                      {/* Platform */}
+                      <div>
+                        <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Platform</label>
+                        <Select
+                          value={gw.platform}
+                          onValueChange={(val) => onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...gw, platform: val } })}
+                        >
+                          <SelectTrigger className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border-white/[0.08] rounded-lg text-[13px] text-white/80 focus:ring-0 focus:ring-offset-0 focus:border-purple-500/30 transition-all duration-200">
+                            <SelectValue placeholder="Select platform" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#0d1220] border-white/[0.08] text-white/80">
+                            <SelectItem value="express-proxy">Express Proxy</SelectItem>
+                            <SelectItem value="nginx">Nginx</SelectItem>
+                            <SelectItem value="spring-cloud-gateway">Spring Cloud Gateway</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Routes */}
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Routes</label>
+                          <button
+                            onClick={() => {
+                              const newRoute = {
+                                id: crypto.randomUUID(),
+                                pathPrefix: '/api/new',
+                                targetService: 'ServiceName',
+                                targetPort: 8080,
+                                methods: ['ALL'],
+                                stripPrefix: false,
+                              }
+                              onUpdateNode?.(selectedNode.id, {
+                                gatewayConfig: { ...gw, routes: [...gw.routes, newRoute] }
+                              })
+                            }}
+                            className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" /> Add
+                          </button>
+                        </div>
+                        <div className="mt-2 space-y-2">
+                          {gw.routes.map((route: any, i: number) => (
+                            <div key={route.id || i} className="p-2.5 bg-white/[0.03] rounded-lg border border-white/[0.06] space-y-2 relative group">
+                              <button
+                                onClick={() => {
+                                  const newRoutes = gw.routes.filter((_: any, idx: number) => idx !== i)
+                                  onUpdateNode?.(selectedNode.id, {
+                                    gatewayConfig: { ...gw, routes: newRoutes }
+                                  })
+                                }}
+                                className="absolute -top-1.5 -right-1.5 bg-[#0d1220] border border-white/[0.06] rounded-full p-0.5 text-white/40 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+
+                              {/* Path prefix */}
+                              <div>
+                                <label className="text-[9px] text-white/20 uppercase">Path Prefix</label>
+                                <input
+                                  value={route.pathPrefix}
+                                  onChange={(e) => {
+                                    const newRoutes = [...gw.routes]
+                                    newRoutes[i] = { ...route, pathPrefix: e.target.value }
+                                    onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...gw, routes: newRoutes } })
+                                  }}
+                                  className="w-full bg-transparent border border-white/[0.04] rounded px-2 py-1 text-[12px] text-emerald-400/70 font-mono outline-none focus:border-purple-500/30"
+                                  placeholder="/api/users"
+                                />
+                              </div>
+
+                              {/* Target service + port */}
+                              <div className="flex gap-2">
+                                <div className="flex-1">
+                                  <label className="text-[9px] text-white/20 uppercase">Target Service</label>
+                                  <input
+                                    value={route.targetService}
+                                    onChange={(e) => {
+                                      const newRoutes = [...gw.routes]
+                                      newRoutes[i] = { ...route, targetService: e.target.value }
+                                      onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...gw, routes: newRoutes } })
+                                    }}
+                                    className="w-full bg-transparent border border-white/[0.04] rounded px-2 py-1 text-[12px] text-white/60 outline-none focus:border-purple-500/30"
+                                    placeholder="UserService"
+                                  />
+                                </div>
+                                <div className="w-20">
+                                  <label className="text-[9px] text-white/20 uppercase">Port</label>
+                                  <input
+                                    type="number"
+                                    value={route.targetPort}
+                                    onChange={(e) => {
+                                      const newRoutes = [...gw.routes]
+                                      newRoutes[i] = { ...route, targetPort: parseInt(e.target.value) || 8080 }
+                                      onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...gw, routes: newRoutes } })
+                                    }}
+                                    className="w-full bg-transparent border border-white/[0.04] rounded px-2 py-1 text-[12px] text-white/60 font-mono outline-none focus:border-purple-500/30"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Methods */}
+                              <div>
+                                <label className="text-[9px] text-white/20 uppercase">Methods</label>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {['ALL', 'GET', 'POST', 'PUT', 'DELETE'].map(m => {
+                                    const isActive = route.methods.includes(m) || (m === 'ALL' && route.methods.includes('ALL'))
+                                    return (
+                                      <button
+                                        key={m}
+                                        onClick={() => {
+                                          const newRoutes = [...gw.routes]
+                                          let newMethods: string[]
+                                          if (m === 'ALL') {
+                                            newMethods = ['ALL']
+                                          } else {
+                                            const filtered = route.methods.filter((x: string) => x !== 'ALL')
+                                            newMethods = isActive
+                                              ? filtered.filter((x: string) => x !== m)
+                                              : [...filtered, m]
+                                            if (newMethods.length === 0) newMethods = ['ALL']
+                                          }
+                                          newRoutes[i] = { ...route, methods: newMethods }
+                                          onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...gw, routes: newRoutes } })
+                                        }}
+                                        className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-all ${
+                                          isActive
+                                            ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                                            : 'bg-white/[0.02] text-white/25 border-white/[0.06] hover:text-white/50'
+                                        }`}
+                                      >
+                                        {m}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Strip prefix toggle */}
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={route.stripPrefix || false}
+                                  onChange={(e) => {
+                                    const newRoutes = [...gw.routes]
+                                    newRoutes[i] = { ...route, stripPrefix: e.target.checked }
+                                    onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...gw, routes: newRoutes } })
+                                  }}
+                                  className="rounded border-white/20 bg-white/[0.04] text-purple-500 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                                />
+                                <span className="text-[10px] text-white/40">Strip prefix before forwarding</span>
+                              </label>
+                            </div>
+                          ))}
+                          {gw.routes.length === 0 && (
+                            <p className="text-[11px] text-white/30 text-center py-2">No routes configured</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Divider */}
+                      <div className="border-t border-white/[0.06]" />
+
+                      {/* Middleware Section */}
+                      <div>
+                        <p className="text-[10px] font-semibold text-white/25 uppercase tracking-wider mb-3">Middleware</p>
+
+                        {/* Auth */}
+                        <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] space-y-2 mb-2">
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-white/60">
+                              <Shield className="w-3.5 h-3.5 text-blue-400" />
+                              Authentication
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={gw.auth.enabled}
+                              onChange={(e) => onUpdateNode?.(selectedNode.id, {
+                                gatewayConfig: { ...gw, auth: { ...gw.auth, enabled: e.target.checked } }
+                              })}
+                              className="rounded border-white/20 bg-white/[0.04] text-blue-500 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                            />
+                          </label>
+                          {gw.auth.enabled && (
+                            <Select
+                              value={gw.auth.type}
+                              onValueChange={(val) => onUpdateNode?.(selectedNode.id, {
+                                gatewayConfig: { ...gw, auth: { ...gw.auth, type: val } }
+                              })}
+                            >
+                              <SelectTrigger className="w-full h-8 px-2 bg-white/[0.04] border-white/[0.06] rounded text-[11px] text-white/60 focus:ring-0 focus:ring-offset-0 focus:border-purple-500/30">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#0d1220] border-white/[0.08] text-white/80 min-w-[100px]">
+                                <SelectItem value="jwt" className="text-[11px]">JWT Bearer</SelectItem>
+                                <SelectItem value="api-key" className="text-[11px]">API Key</SelectItem>
+                                <SelectItem value="none" className="text-[11px]">None</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+
+                        {/* Rate Limiting */}
+                        <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] space-y-2 mb-2">
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-white/60">
+                              <Gauge className="w-3.5 h-3.5 text-amber-400" />
+                              Rate Limiting
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={gw.rateLimit.enabled}
+                              onChange={(e) => onUpdateNode?.(selectedNode.id, {
+                                gatewayConfig: { ...gw, rateLimit: { ...gw.rateLimit, enabled: e.target.checked } }
+                              })}
+                              className="rounded border-white/20 bg-white/[0.04] text-amber-500 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                            />
+                          </label>
+                          {gw.rateLimit.enabled && (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                value={gw.rateLimit.requestsPerMinute}
+                                onChange={(e) => onUpdateNode?.(selectedNode.id, {
+                                  gatewayConfig: { ...gw, rateLimit: { ...gw.rateLimit, requestsPerMinute: parseInt(e.target.value) || 100 } }
+                                })}
+                                className="flex-1 bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 outline-none text-[11px] text-white/70 font-mono focus:border-purple-500/30"
+                              />
+                              <span className="text-[10px] text-white/30 whitespace-nowrap">req/min</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* CORS */}
+                        <div className="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.06] space-y-2">
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="flex items-center gap-1.5 text-[11px] font-medium text-white/60">
+                              <Globe className="w-3.5 h-3.5 text-purple-400" />
+                              CORS
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={gw.cors.enabled}
+                              onChange={(e) => onUpdateNode?.(selectedNode.id, {
+                                gatewayConfig: { ...gw, cors: { ...gw.cors, enabled: e.target.checked } }
+                              })}
+                              className="rounded border-white/20 bg-white/[0.04] text-purple-500 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5"
+                            />
+                          </label>
+                          {gw.cors.enabled && (
+                            <div>
+                              <label className="text-[9px] text-white/20 uppercase">Allowed Origins</label>
+                              <input
+                                value={gw.cors.allowedOrigins.join(', ')}
+                                onChange={(e) => onUpdateNode?.(selectedNode.id, {
+                                  gatewayConfig: { ...gw, cors: { ...gw.cors, allowedOrigins: e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean) } }
+                                })}
+                                className="w-full bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 outline-none text-[11px] text-white/60 font-mono focus:border-purple-500/30 mt-1"
+                                placeholder="*, https://example.com"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Inspector Footer */}
