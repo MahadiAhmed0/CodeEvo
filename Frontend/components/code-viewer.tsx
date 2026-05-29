@@ -65,7 +65,7 @@ const generateMockFiles = (nodes: any[]) => {
               'com': { type: 'folder', name: 'com', children: {
                 'codeevo': { type: 'folder', name: 'codeevo', children: {
                   'Application.java': { type: 'file', name: 'Application.java', language: 'java', content: `package com.codeevo;\n\nimport org.springframework.boot.SpringApplication;\nimport org.springframework.boot.autoconfigure.SpringBootApplication;\n\n@SpringBootApplication\npublic class Application {\n    public static void main(String[] args) {\n        SpringApplication.run(Application.class, args);\n    }\n}` },
-                  'Controller.java': { type: 'file', name: 'Controller.java', language: 'java', content: `package com.codeevo;\n\nimport org.springframework.web.bind.annotation.*;\n\n@RestController\npublic class Controller {\n    // Auto-generated endpoints\n    // ${service.data.endpoints?.join(', ') || 'No endpoints defined'}\n}` }
+                  'Controller.java': { type: 'file', name: 'Controller.java', language: 'java', content: `package com.codeevo;\n\nimport org.springframework.web.bind.annotation.*;\n\n@RestController\npublic class Controller {\n    // Auto-generated endpoints\n    // ${service.data.endpoints?.map((ep: any) => typeof ep === 'string' ? ep : ep.path).join(', ') || 'No endpoints defined'}\n}` }
                 }}
               }}
             }}
@@ -78,14 +78,30 @@ const generateMockFiles = (nodes: any[]) => {
         'main.go': { type: 'file', name: 'main.go', language: 'go', content: `package main\n\nimport (\n\t"fmt"\n\t"log"\n\t"net/http"\n)\n\nfunc main() {\n\tfmt.Println("Starting ${sName} on port ${service.data.port}")\n\tlog.Fatal(http.ListenAndServe(":${service.data.port}", nil))\n}` },
         'internal': { type: 'folder', name: 'internal', children: {
           'api': { type: 'folder', name: 'api', children: {
-            'handlers.go': { type: 'file', name: 'handlers.go', language: 'go', content: `package api\n\nimport "net/http"\n\n// Handlers for ${service.data.endpoints?.join(', ') || 'API'}` }
+            'handlers.go': { type: 'file', name: 'handlers.go', language: 'go', content: `package api\n\nimport "net/http"\n\n// Handlers for ${service.data.endpoints?.map((ep: any) => typeof ep === 'string' ? ep : ep.path).join(', ') || 'API'}` }
           }}
         }}
       }
     } else {
       root[sName].children = {
         'package.json': { type: 'file', name: 'package.json', language: 'json', content: `{\n  "name": "${sName.toLowerCase()}",\n  "version": "1.0.0",\n  "main": "index.js",\n  "scripts": {\n    "start": "node index.js"\n  }\n}` },
-        'index.js': { type: 'file', name: 'index.js', language: 'javascript', content: `const express = require('express');\nconst app = express();\nconst port = ${service.data.port || 3000};\n\napp.use(express.json());\n\n${(service.data.endpoints || []).map((ep: string) => `app.all('${ep.replace(/\\{[^}]+\\}/g, ':id')}', (req, res) => {\n  res.json({ message: '${ep} OK' });\n});`).join('\\n\\n')}\n\napp.listen(port, () => {\n  console.log(\`${sName} listening on port \${port}\`);\n});` }
+        'index.js': { type: 'file', name: 'index.js', language: 'javascript', content: [
+          "const express = require('express');",
+          "const app = express();",
+          "const port = " + (service.data.port || 3000) + ";",
+          "",
+          "app.use(express.json());",
+          "",
+          (service.data.endpoints || []).map((ep: any) => {
+            const path = typeof ep === 'string' ? ep : (ep.path || '');
+            const expressPath = path.split('{').join(':').split('}').join('');
+            return "app.all('" + expressPath + "', (req, res) => {\\n  res.json({ message: '" + path + " OK' });\\n});";
+          }).join('\\n\\n'),
+          "",
+          "app.listen(port, () => {",
+          "  console.log(`" + sName + " listening on port ${port}`);",
+          "});"
+        ].join('\\n') }
       }
     }
   })
@@ -162,10 +178,10 @@ export function CodeViewer({ nodes, edges }: CodeViewerProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="absolute inset-0 z-0 bg-[#06080d] flex flex-col font-mono"
+      className="absolute inset-0 z-0 bg-[#06080d] flex flex-col font-mono pt-[72px]"
     >
       {/* IDE Top Bar */}
-      <div className="h-10 border-b border-white/[0.06] flex items-center justify-between px-4 bg-[#0a0e1a]">
+      <div className="h-10 border-y border-white/[0.06] flex items-center justify-between px-4 bg-[#0a0e1a]">
         <div className="flex items-center gap-4 text-[12px] text-gray-400">
           <span className="flex items-center gap-2"><GitBranch size={14} /> main</span>
           <span className="w-px h-4 bg-white/[0.1]" />

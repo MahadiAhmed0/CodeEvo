@@ -15,7 +15,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { DiagramNode } from './diagram-node'
 import { useDiagramStore } from '@/lib/store'
-import { Download, Plus, Zap, X, Code2, Network } from 'lucide-react'
+import { Download, Plus, Zap, X, Code2, Network, Server, Database, Layers, Upload, FileJson, Terminal, Bot } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { APITestingModal } from './api-testing-modal'
 import { CodeViewer } from './code-viewer'
@@ -223,6 +223,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
   }, [edges, projectId])
 
   const [showNodeMenu, setShowNodeMenu] = useState(false)
+  const [showJsonMenu, setShowJsonMenu] = useState(false)
   const [showAPIModal, setShowAPIModal] = useState(false)
   const [viewMode, setViewMode] = useState<'graph' | 'code'>('graph')
   const { setSelectedNode: storeSetSelectedNode, isChatbotExpanded } = useDiagramStore()
@@ -556,9 +557,9 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
           <button
             onClick={() => setShowNodeMenu(!showNodeMenu)}
             disabled={viewMode === 'code'}
-            className="px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white rounded-xl text-[13px] font-semibold flex items-center gap-2 hover:shadow-lg hover:shadow-purple-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 bg-[#6c3bf5] hover:bg-[#5b2cd6] text-white rounded-full text-[13px] font-semibold flex items-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(108,59,245,0.3)] hover:shadow-[0_0_25px_rgba(108,59,245,0.5)] border border-white/10"
           >
-            <Plus size={15} />
+            <Plus size={16} strokeWidth={2.5} />
             Add Node
           </button>
 
@@ -568,19 +569,22 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
                 initial={{ opacity: 0, scale: 0.95, y: -4 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                className="absolute top-full left-0 mt-2 bg-[#0d1220]/95 backdrop-blur-xl rounded-xl shadow-2xl border border-white/[0.08] overflow-hidden min-w-[180px]"
+                className="absolute top-full left-0 mt-3 bg-[#0f1423]/95 backdrop-blur-xl rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden min-w-[200px] z-50 p-1.5"
               >
                 {[
-                  { type: 'service' as const, icon: '⚙️', label: 'Service', color: 'hover:bg-purple-500/10' },
-                  { type: 'database' as const, icon: '🗄️', label: 'Database', color: 'hover:bg-amber-500/10' },
-                  { type: 'queue' as const, icon: '📬', label: 'Queue', color: 'hover:bg-pink-500/10' },
+                  { type: 'service' as const, icon: Server, label: 'Service Component', color: 'text-purple-400', bgHover: 'hover:bg-purple-500/10' },
+                  { type: 'database' as const, icon: Database, label: 'Database System', color: 'text-amber-400', bgHover: 'hover:bg-amber-500/10' },
+                  { type: 'queue' as const, icon: Layers, label: 'Message Queue', color: 'text-pink-400', bgHover: 'hover:bg-pink-500/10' },
+                  { type: 'api' as const, icon: Network, label: 'API Gateway', color: 'text-emerald-400', bgHover: 'hover:bg-emerald-500/10' },
                 ].map(item => (
                   <button
                     key={item.type}
                     onClick={() => addNewNode(item.type)}
-                    className={`w-full px-4 py-2.5 text-left text-white/70 hover:text-white text-[13px] font-medium border-b border-white/[0.04] last:border-0 flex items-center gap-2.5 transition-all duration-200 ${item.color}`}
+                    className={`w-full px-3 py-2.5 text-left text-white/80 hover:text-white text-[13px] font-medium rounded-lg flex items-center gap-3 transition-all duration-200 ${item.bgHover}`}
                   >
-                    <span className="text-base">{item.icon}</span>
+                    <div className={`p-1.5 rounded-md bg-white/[0.03] shadow-inner border border-white/[0.05] ${item.color}`}>
+                      <item.icon size={16} strokeWidth={2} />
+                    </div>
                     {item.label}
                   </button>
                 ))}
@@ -624,25 +628,59 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
             <Zap size={14} className="text-amber-400/70" />
             API Test
           </button>
-          <button
-            onClick={importDiagram}
-            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
-          >
-            <Plus size={14} />
-            Import JSON
-          </button>
-          <button
-            onClick={exportDiagram}
-            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
-          >
-            <Download size={14} />
-            Export JSON
-          </button>
+          
+          <div className="relative">
+            <button
+              onClick={() => setShowJsonMenu(!showJsonMenu)}
+              className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
+            >
+              <FileJson size={14} />
+              JSON Data
+            </button>
+            <AnimatePresence>
+              {showJsonMenu && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 4 }}
+                  className="absolute top-full right-0 mt-3 bg-[#0f1423]/95 backdrop-blur-xl rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden min-w-[200px] z-50 p-1.5"
+                >
+                  <button
+                    onClick={() => { importDiagram(); setShowJsonMenu(false); }}
+                    className="w-full px-3 py-2.5 text-left text-white/80 hover:text-white text-[13px] font-medium rounded-lg flex items-center gap-3 transition-all duration-200 hover:bg-emerald-500/10"
+                  >
+                    <div className="p-1.5 rounded-md bg-white/[0.03] shadow-inner border border-white/[0.05] text-emerald-400">
+                      <Upload size={16} strokeWidth={2} />
+                    </div>
+                    Import JSON
+                  </button>
+                  <button
+                    onClick={() => { exportDiagram(); setShowJsonMenu(false); }}
+                    className="w-full px-3 py-2.5 text-left text-white/80 hover:text-white text-[13px] font-medium rounded-lg flex items-center gap-3 transition-all duration-200 hover:bg-blue-500/10"
+                  >
+                    <div className="p-1.5 rounded-md bg-white/[0.03] shadow-inner border border-white/[0.05] text-blue-400">
+                      <Download size={16} strokeWidth={2} />
+                    </div>
+                    Export JSON
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           <button
             className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
           >
             <Code2 size={14} />
             Download Code
+          </button>
+          
+          <button
+            onClick={() => setViewMode('code')}
+            className="px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white rounded-xl text-[13px] font-semibold flex items-center gap-2 hover:shadow-[0_0_15px_rgba(199,76,240,0.4)] transition-all duration-300 ml-2"
+          >
+            <Bot size={15} />
+            Generate Code
           </button>
         </div>
       </motion.div>
