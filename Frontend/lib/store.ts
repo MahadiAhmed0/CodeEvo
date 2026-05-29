@@ -103,6 +103,7 @@ interface DiagramStore {
   selectedNode: Node | null
   apiTesting: APITestingState
   isChatbotExpanded: boolean
+  viewMode: 'graph' | 'code' | 'test'
   
   setNodes: (nodes: Node[]) => void
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void
@@ -115,6 +116,7 @@ interface DiagramStore {
   
   setSelectedNode: (node: Node | null) => void
   setIsChatbotExpanded: (expanded: boolean) => void
+  setViewMode: (viewMode: 'graph' | 'code' | 'test') => void
   
   setAPITesting: (testing: Partial<APITestingState>) => void
   resetAPITesting: () => void
@@ -138,6 +140,7 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
   selectedNode: null,
   apiTesting: defaultAPITesting,
   isChatbotExpanded: true,
+  viewMode: 'graph',
 
   setNodes: (nodes) => set({ nodes }),
   updateNodePosition: (nodeId, position) =>
@@ -164,6 +167,7 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
 
   setSelectedNode: (node) => set({ selectedNode: node }),
   setIsChatbotExpanded: (expanded) => set({ isChatbotExpanded: expanded }),
+  setViewMode: (viewMode) => set({ viewMode }),
 
   setAPITesting: (testing) =>
     set((state) => ({

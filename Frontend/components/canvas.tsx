@@ -15,7 +15,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { DiagramNode } from './diagram-node'
 import { useDiagramStore } from '@/lib/store'
-import { Download, Plus, Zap, X, Code2, Network, Server, Database, Layers, Upload, FileJson, Terminal, Bot } from 'lucide-react'
+import { Download, Plus, Zap, X, Code2, Network, Server, Database, Layers, Upload, FileJson, Terminal, Play } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { APITester } from './api-tester'
 import { CodeViewer } from './code-viewer'
@@ -275,8 +275,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
 
   const [showNodeMenu, setShowNodeMenu] = useState(false)
   const [showJsonMenu, setShowJsonMenu] = useState(false)
-  const [viewMode, setViewMode] = useState<'graph' | 'code' | 'test'>('graph')
-  const { setSelectedNode: storeSetSelectedNode, isChatbotExpanded } = useDiagramStore()
+  const { setSelectedNode: storeSetSelectedNode, isChatbotExpanded, viewMode, setViewMode } = useDiagramStore()
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -764,7 +763,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
             disabled={viewMode !== 'graph'}
             className="px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white rounded-xl text-[13px] font-semibold flex items-center gap-2 hover:shadow-[0_0_15px_rgba(199,76,240,0.4)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
           >
-            <Bot size={15} />
+            <Play size={15} className="fill-current" />
             Generate Code
           </button>
         </div>

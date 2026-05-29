@@ -12,7 +12,7 @@ import {
   Server,
   Network,
   Layers,
-  Code2,
+  Edit,
   Settings,
   History,
   GitCommit,
@@ -196,7 +196,7 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] flex items-center justify-center">
-            <Code2 className="w-3.5 h-3.5 text-white" />
+            <Edit className="w-3.5 h-3.5 text-white" />
           </div>
           <span className="text-sm font-semibold text-white/80">Editor</span>
         </div>
