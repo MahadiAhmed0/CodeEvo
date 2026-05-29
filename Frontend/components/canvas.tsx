@@ -93,7 +93,11 @@ const initialNodes: Node[] = [
       type: 'database',
       name: 'UserDB',
       engine: 'postgres',
-      tables: ['users', 'profiles', 'preferences'],
+      tables: [
+        { name: 'users', columns: [{ name: 'id', type: 'uuid' }, { name: 'email', type: 'varchar' }] },
+        { name: 'profiles', columns: [{ name: 'id', type: 'uuid' }, { name: 'user_id', type: 'uuid' }] },
+        { name: 'preferences', columns: [{ name: 'id', type: 'uuid' }, { name: 'theme', type: 'varchar' }] }
+      ] as any[],
     },
     position: { x: 100, y: 350 },
     type: 'diagram',
@@ -104,7 +108,11 @@ const initialNodes: Node[] = [
       type: 'database',
       name: 'OrderDB',
       engine: 'mongodb',
-      collections: ['orders', 'order_items', 'shipments'],
+      collections: [
+        { name: 'orders', columns: [{ name: '_id', type: 'ObjectId' }, { name: 'status', type: 'String' }] },
+        { name: 'order_items', columns: [{ name: '_id', type: 'ObjectId' }, { name: 'product', type: 'String' }] },
+        { name: 'shipments', columns: [{ name: '_id', type: 'ObjectId' }, { name: 'tracking_id', type: 'String' }] }
+      ] as any[],
     },
     position: { x: 450, y: 350 },
     type: 'diagram',
@@ -410,7 +418,10 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
       database: {
         name: 'NewDB',
         engine: 'postgres',
-        tables: ['table1', 'table2'],
+        tables: [
+          { name: 'table1', columns: [{ name: 'id', type: 'uuid' }] },
+          { name: 'table2', columns: [{ name: 'id', type: 'uuid' }] }
+        ] as any[],
       },
       queue: {
         name: 'NewQueue',

@@ -141,8 +141,8 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
             <p className="text-white/35">{data.engine || 'PostgreSQL'}</p>
             {data.tables && (data.engine === 'postgres' || data.engine === 'mysql') && (
               <div className="pt-1.5 border-t border-white/[0.06] space-y-0.5">
-                {data.tables.slice(0, 2).map((t, i) => (
-                  <p key={`table-${i}`} className="text-amber-400/40 font-mono text-[9px] truncate">{t}</p>
+                {data.tables.slice(0, 2).map((t: any, i: number) => (
+                  <p key={`table-${i}`} className="text-amber-400/40 font-mono text-[9px] truncate">{(typeof t === 'string') ? t : t.name}</p>
                 ))}
                 {data.tables.length > 2 && (
                   <p className="text-white/15 text-[9px]">+{data.tables.length - 2} more</p>
@@ -151,8 +151,8 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
             )}
             {data.collections && data.engine === 'mongodb' && (
               <div className="pt-1.5 border-t border-white/[0.06] space-y-0.5">
-                {data.collections.slice(0, 2).map((c, i) => (
-                  <p key={`coll-${i}`} className="text-amber-400/40 font-mono text-[9px] truncate">{c}</p>
+                {data.collections.slice(0, 2).map((c: any, i: number) => (
+                  <p key={`coll-${i}`} className="text-amber-400/40 font-mono text-[9px] truncate">{(typeof c === 'string') ? c : c.name}</p>
                 ))}
                 {data.collections.length > 2 && (
                   <p className="text-white/15 text-[9px]">+{data.collections.length - 2} more</p>

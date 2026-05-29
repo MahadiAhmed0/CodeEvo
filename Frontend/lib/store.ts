@@ -7,6 +7,16 @@ export interface EndpointConfig {
   body?: string
 }
 
+export interface ColumnConfig {
+  name: string
+  type: string
+}
+
+export interface TableConfig {
+  name: string
+  columns: ColumnConfig[]
+}
+
 export interface Node {
   id: string
   type: 'service' | 'database' | 'queue' | 'api'
@@ -17,8 +27,8 @@ export interface Node {
   engine?: string
   provider?: string
   endpoints?: EndpointConfig[]
-  tables?: string[]
-  collections?: string[]
+  tables?: TableConfig[] | any[]
+  collections?: TableConfig[] | any[]
   topics?: string[]
 }
 

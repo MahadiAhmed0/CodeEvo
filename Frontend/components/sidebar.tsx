@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { 
   ChevronRight,
+  ChevronDown,
   ChevronLeft,
   Database,
   Server,
@@ -45,6 +46,105 @@ interface SidebarProps {
   setSelectedNode?: (node: any) => void
   onDeleteNode?: (nodeId: string) => void
   onUpdateNode?: (nodeId: string, data: any) => void
+}
+
+function TableColumnEditor({ item, itemIndex, itemType, engine, onUpdate }: { item: any, itemIndex: number, itemType: 'Table' | 'Collection', engine: string, onUpdate: (newItem: any, action: 'update' | 'delete') => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const name = typeof item === 'string' ? item : item.name || ''
+  const columns = typeof item === 'string' ? [] : (item.columns || [])
+
+  const dataTypes = engine === 'mongodb' 
+    ? ['String', 'Number', 'Boolean', 'Date', 'ObjectId', 'Array', 'Object']
+    : ['varchar', 'integer', 'boolean', 'timestamp', 'uuid', 'jsonb', 'text']
+
+  return (
+    <div className="group rounded-lg border border-white/[0.06] overflow-hidden bg-white/[0.02]">
+      <div className="flex items-center gap-2 p-2">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="p-1 rounded text-white/40 hover:text-white/80 hover:bg-white/[0.06] transition-all"
+        >
+          {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+        </button>
+        <Lock className="w-3 h-3 text-amber-400/40" />
+        <input
+          value={name}
+          onChange={(e) => onUpdate({ name: e.target.value, columns }, 'update')}
+          className="bg-transparent border-none outline-none text-white/80 w-full placeholder:text-white/20 font-mono text-[12px]"
+          placeholder={`${itemType.toLowerCase()}_name`}
+        />
+        <button
+          onClick={() => onUpdate(item, 'delete')}
+          className="p-1.5 rounded-lg text-white/20 hover:bg-red-500/10 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {expanded && (
+        <div className="p-2 border-t border-white/[0.06] bg-black/20 space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[9px] font-semibold text-white/30 uppercase tracking-wider">Columns</span>
+            <button
+              onClick={() => {
+                const newCols = [...columns, { name: 'new_column', type: dataTypes[0] }]
+                onUpdate({ name, columns: newCols }, 'update')
+              }}
+              className="text-[9px] text-amber-400/80 hover:text-amber-300 flex items-center gap-0.5"
+            >
+              <Plus className="w-2.5 h-2.5" /> Add
+            </button>
+          </div>
+          
+          <div className="space-y-1.5">
+            {columns.map((col: any, idx: number) => (
+              <div key={idx} className="flex items-center gap-1.5 pl-1 group/col">
+                <input
+                  value={col.name}
+                  onChange={(e) => {
+                    const newCols = [...columns]
+                    newCols[idx] = { ...col, name: e.target.value }
+                    onUpdate({ name, columns: newCols }, 'update')
+                  }}
+                  className="bg-white/[0.04] border border-white/[0.06] rounded px-2 py-1 outline-none text-[11px] text-white/70 w-[90px] focus:border-purple-500/30 font-mono"
+                  placeholder="name"
+                />
+                <Select
+                  value={col.type || dataTypes[0]}
+                  onValueChange={(val) => {
+                    const newCols = [...columns]
+                    newCols[idx] = { ...col, type: val }
+                    onUpdate({ name, columns: newCols }, 'update')
+                  }}
+                >
+                  <SelectTrigger className="flex-1 h-[26px] px-2 bg-white/[0.04] border-white/[0.06] rounded text-[11px] text-white/60 focus:ring-0 focus:ring-offset-0 focus:border-purple-500/30">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0d1220] border-white/[0.08] text-white/80 min-w-[100px]">
+                    {dataTypes.map(dt => (
+                      <SelectItem key={dt} value={dt} className="text-[11px] font-mono">{dt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <button
+                  onClick={() => {
+                    const newCols = columns.filter((_: any, cidx: number) => cidx !== idx)
+                    onUpdate({ name, columns: newCols }, 'update')
+                  }}
+                  className="p-1 rounded text-white/20 hover:bg-red-500/10 hover:text-red-400 opacity-0 group-hover/col:opacity-100 transition-all duration-200"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            {columns.length === 0 && (
+              <p className="text-[10px] text-white/20 text-center py-1">No columns yet</p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateNode }: SidebarProps) {
@@ -106,12 +206,12 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 px-3 py-2.5 border-b border-white/[0.06]">
+      <div className="flex gap-1 px-3 py-2.5 border-b border-white/[0.06] overflow-x-auto scrollbar-none">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => { setActiveSection(tab.id); if (selectedNode && setSelectedNode) setSelectedNode(null); }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+            className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
               effectiveSection === tab.id && !selectedNode
                 ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
                 : 'text-white/40 hover:text-white/70 hover:bg-white/[0.04]'
@@ -122,7 +222,7 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
           </button>
         ))}
         {selectedNode && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
+          <div className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-500/10 text-purple-400 border border-purple-500/20">
             <Zap className="w-3.5 h-3.5" />
             Inspector
           </div>
@@ -398,7 +498,7 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                           <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Tables</label>
                           <button
                             onClick={() => {
-                              const newTables = [...(selectedNode.tables || []), 'new_table']
+                              const newTables = [...(selectedNode.tables || []), { name: 'new_table', columns: [] }]
                               onUpdateNode?.(selectedNode.id, { tables: newTables })
                             }}
                             className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
@@ -407,31 +507,23 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                           </button>
                         </div>
                         <div className="mt-2 space-y-1.5">
-                          {selectedNode.tables?.map((table: string, i: number) => (
-                            <div key={i} className="flex items-center gap-2 group">
-                              <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] rounded-lg border border-white/[0.06] text-[12px] flex-1">
-                                <Lock className="w-3 h-3 text-amber-400/40" />
-                                <input
-                                  value={table}
-                                  onChange={(e) => {
-                                    const newTables = [...(selectedNode.tables || [])]
-                                    newTables[i] = e.target.value
-                                    onUpdateNode?.(selectedNode.id, { tables: newTables })
-                                  }}
-                                  className="bg-transparent border-none outline-none text-white/80 w-full placeholder:text-white/20 font-mono"
-                                  placeholder="table_name"
-                                />
-                              </div>
-                              <button
-                                onClick={() => {
-                                  const newTables = (selectedNode.tables || []).filter((_: any, idx: number) => idx !== i)
-                                  onUpdateNode?.(selectedNode.id, { tables: newTables })
-                                }}
-                                className="p-2 rounded-lg text-white/20 hover:bg-red-500/10 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                          {selectedNode.tables?.map((table: any, i: number) => (
+                            <TableColumnEditor
+                              key={i}
+                              item={table}
+                              itemIndex={i}
+                              itemType="Table"
+                              engine={selectedNode.engine}
+                              onUpdate={(newItem, action) => {
+                                const newTables = [...(selectedNode.tables || [])]
+                                if (action === 'delete') {
+                                  newTables.splice(i, 1)
+                                } else {
+                                  newTables[i] = newItem
+                                }
+                                onUpdateNode?.(selectedNode.id, { tables: newTables })
+                              }}
+                            />
                           ))}
                           {(!selectedNode.tables || selectedNode.tables.length === 0) && (
                             <p className="text-[11px] text-white/30 text-center py-2">No tables found</p>
@@ -446,7 +538,7 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                           <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Collections</label>
                           <button
                             onClick={() => {
-                              const newCols = [...(selectedNode.collections || []), 'new_collection']
+                              const newCols = [...(selectedNode.collections || []), { name: 'new_collection', columns: [] }]
                               onUpdateNode?.(selectedNode.id, { collections: newCols })
                             }}
                             className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
@@ -455,31 +547,23 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                           </button>
                         </div>
                         <div className="mt-2 space-y-1.5">
-                          {selectedNode.collections?.map((col: string, i: number) => (
-                            <div key={i} className="flex items-center gap-2 group">
-                              <div className="flex items-center gap-2 px-3 py-2 bg-white/[0.03] rounded-lg border border-white/[0.06] text-[12px] flex-1">
-                                <Lock className="w-3 h-3 text-amber-400/40" />
-                                <input
-                                  value={col}
-                                  onChange={(e) => {
-                                    const newCols = [...(selectedNode.collections || [])]
-                                    newCols[i] = e.target.value
-                                    onUpdateNode?.(selectedNode.id, { collections: newCols })
-                                  }}
-                                  className="bg-transparent border-none outline-none text-white/80 w-full placeholder:text-white/20 font-mono"
-                                  placeholder="collectionName"
-                                />
-                              </div>
-                              <button
-                                onClick={() => {
-                                  const newCols = (selectedNode.collections || []).filter((_: any, idx: number) => idx !== i)
-                                  onUpdateNode?.(selectedNode.id, { collections: newCols })
-                                }}
-                                className="p-2 rounded-lg text-white/20 hover:bg-red-500/10 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all duration-200"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                          {selectedNode.collections?.map((col: any, i: number) => (
+                            <TableColumnEditor
+                              key={i}
+                              item={col}
+                              itemIndex={i}
+                              itemType="Collection"
+                              engine={selectedNode.engine}
+                              onUpdate={(newItem, action) => {
+                                const newCols = [...(selectedNode.collections || [])]
+                                if (action === 'delete') {
+                                  newCols.splice(i, 1)
+                                } else {
+                                  newCols[i] = newItem
+                                }
+                                onUpdateNode?.(selectedNode.id, { collections: newCols })
+                              }}
+                            />
                           ))}
                           {(!selectedNode.collections || selectedNode.collections.length === 0) && (
                             <p className="text-[11px] text-white/30 text-center py-2">No collections found</p>
