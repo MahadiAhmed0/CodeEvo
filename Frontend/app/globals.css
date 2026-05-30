@@ -281,3 +281,111 @@
 aside, nav {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* ========================================
+   Workspace Panel Shared Styles
+   Used by CodeViewer, APITester, and
+   other IDE-like full-screen panels.
+   ======================================== */
+
+/* Workspace panel base */
+.workspace-panel {
+  background-color: #06080d;
+  font-family: var(--font-mono);
+}
+
+/* Workspace top bar */
+.workspace-topbar {
+  height: 40px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: #0a0e1a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+}
+
+/* Workspace sidebar */
+.workspace-sidebar {
+  width: 256px;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: rgba(10, 14, 26, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Workspace bottom panel */
+.workspace-bottom {
+  height: 176px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background-color: #0a0e1a;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Workspace tab underline active state */
+.workspace-tab-active {
+  color: #a78bfa;
+  border-bottom: 2px solid #a78bfa;
+  padding-bottom: 8px;
+  transform: translateY(1px);
+}
+
+/* Workspace tab inactive state */
+.workspace-tab-inactive {
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.workspace-tab-inactive:hover {
+  color: #d1d5db;
+}
+
+/* Method badge base colors — consistent across all panels */
+.method-get { color: #34d399; background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.2); }
+.method-post { color: #60a5fa; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.2); }
+.method-put { color: #fbbf24; background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.2); }
+.method-delete { color: #f87171; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); }
+.method-patch { color: #c084fc; background: rgba(168, 85, 247, 0.1); border-color: rgba(168, 85, 247, 0.2); }
+
+/* Status indicator colors */
+.status-success { color: #34d399; }
+.status-error { color: #f87171; }
+.status-warning { color: #fbbf24; }
+.status-info { color: #60a5fa; }
+
+/* Workspace subtle card */
+.workspace-card {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+.workspace-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Workspace input fields */
+.workspace-input {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.8);
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.workspace-input:focus {
+  border-color: rgba(108, 59, 245, 0.3);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.workspace-input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}

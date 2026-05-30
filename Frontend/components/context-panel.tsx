@@ -128,9 +128,10 @@ export function ContextPanel({ selectedNode }: any) {
                 <div>
                   <label className="text-xs font-semibold text-gray-700 uppercase">Endpoints</label>
                   <div className="mt-2 space-y-2">
-                    {selectedNode.endpoints?.map((endpoint: string, i: number) => (
+                    {selectedNode.endpoints?.map((endpoint: any, i: number) => (
                       <div key={i} className="flex items-center gap-2 px-2 py-2 bg-gray-50 rounded border border-gray-200 text-sm font-mono">
-                        {endpoint}
+                        <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-1 rounded uppercase">{(typeof endpoint === 'string' ? 'GET' : endpoint.method) || 'GET'}</span>
+                        {typeof endpoint === 'string' ? endpoint : endpoint.path}
                       </div>
                     ))}
                   </div>

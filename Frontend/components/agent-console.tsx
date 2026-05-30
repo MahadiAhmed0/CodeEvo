@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
+import { useDiagramStore } from '@/lib/store'
 import {
   ChevronUp,
   Play,
@@ -40,16 +41,17 @@ const mockLogs = [
 ]
 
 export function AgentConsole({ running, setRunning }: any) {
-  const [expanded, setExpanded] = useState(true)
+  const isChatbotExpanded = useDiagramStore((state) => state.isChatbotExpanded)
+  const setIsChatbotExpanded = useDiagramStore((state) => state.setIsChatbotExpanded)
   const [currentState, setCurrentState] = useState<keyof typeof agentStates>('IDLE')
   const [autoScroll, setAutoScroll] = useState(true)
 
   const state = agentStates[currentState]
 
-  if (!expanded) {
+  if (!isChatbotExpanded) {
     return (
       <button 
-        onClick={() => setExpanded(true)}
+        onClick={() => setIsChatbotExpanded(true)}
         className="h-12 border-t border-gray-200 bg-white flex items-center justify-between px-4 hover:bg-gray-50 w-full"
       >
         <div className="flex items-center gap-2">
@@ -103,7 +105,7 @@ export function AgentConsole({ running, setRunning }: any) {
             <RotateCcw className="w-4 h-4" />
           </Button>
           <button 
-            onClick={() => setExpanded(false)}
+            onClick={() => setIsChatbotExpanded(false)}
             className="p-1 hover:bg-gray-800 rounded text-gray-400 hover:text-white"
           >
             <ChevronUp className="w-4 h-4" />

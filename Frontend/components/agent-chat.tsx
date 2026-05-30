@@ -160,21 +160,6 @@ export function AgentChat({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (
         </button>
       </div>
 
-      {/* Quick Actions */}
-      <div className="px-4 py-3 border-b border-white/[0.06] flex gap-2">
-        {quickActions.map((action) => (
-          <button
-            key={action.label}
-            onClick={() => setInput(action.label)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px] font-medium text-white/50 hover:text-white/80 hover:bg-white/[0.08] hover:border-white/[0.1] transition-all duration-200"
-          >
-            <action.icon size={12} />
-            {action.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-thin">
         {messages.map((msg) => (
           <motion.div
@@ -185,15 +170,15 @@ export function AgentChat({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (
             className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}
           >
             {/* Avatar */}
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden ${
               msg.role === 'agent'
                 ? 'bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] shadow-md shadow-purple-500/10'
-                : 'bg-white/[0.08]'
+                : 'bg-gradient-to-br from-[#6c3bf5]/60 to-[#c74cf0]/60 shadow-md shadow-purple-500/10'
             }`}>
               {msg.role === 'agent' ? (
-                <Sparkles size={13} className="text-white" />
+                <Bot size={13} className="text-white" />
               ) : (
-                <User size={13} className="text-white/60" />
+                <span className="text-white text-[11px] font-bold">M</span>
               )}
             </div>
 
@@ -241,7 +226,7 @@ export function AgentChat({ isOpen, setIsOpen }: { isOpen: boolean; setIsOpen: (
               className="flex gap-3"
             >
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] flex items-center justify-center flex-shrink-0 shadow-md shadow-purple-500/10">
-                <Sparkles size={13} className="text-white" />
+                <Bot size={13} className="text-white" />
               </div>
               <div className="px-4 py-3 rounded-xl rounded-tl-sm bg-white/[0.04] border border-white/[0.06]">
                 <div className="flex items-center gap-1.5">

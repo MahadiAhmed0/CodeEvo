@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -21,7 +21,7 @@ import {
   CheckCircle2
 } from 'lucide-react'
 
-export default function SettingsPage() {
+function SettingsContent() {
   const searchParams = useSearchParams()
   const defaultTab = searchParams.get('tab') ?? 'profile'
   const [activeTab, setActiveTab] = useState(defaultTab)
@@ -383,5 +383,13 @@ export default function SettingsPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="h-screen bg-[#0a0e1a] text-white flex items-center justify-center">Loading settings...</div>}>
+      <SettingsContent />
+    </Suspense>
   )
 }

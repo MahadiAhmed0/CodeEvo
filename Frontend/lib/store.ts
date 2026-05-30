@@ -1,17 +1,76 @@
 import { create } from 'zustand'
 
+export interface EndpointConfig {
+  path: string
+  method: string
+  description?: string
+  body?: string
+}
+
+export interface ColumnConfig {
+  name: string
+  type: string
+}
+
+export interface TableConfig {
+  name: string
+  columns: ColumnConfig[]
+}
+
+export interface GatewayRoute {
+  id: string
+  pathPrefix: string
+  targetService: string
+  targetPort: number
+  methods: string[]
+  stripPrefix: boolean
+}
+
+export interface GatewayConfig {
+  platform: 'nginx' | 'express-proxy' | 'spring-cloud-gateway'
+  routes: GatewayRoute[]
+  auth: {
+    enabled: boolean
+    type: 'jwt' | 'api-key' | 'none'
+  }
+  rateLimit: {
+    enabled: boolean
+    requestsPerMinute: number
+  }
+  cors: {
+    enabled: boolean
+    allowedOrigins: string[]
+  }
+}
+
+export interface ServiceMethod {
+  name: string
+  description: string
+  type: 'query' | 'mutation' | 'handler'
+}
+
+export interface ExternalAPI {
+  name: string
+  baseUrl: string
+  description: string
+}
+
 export interface Node {
   id: string
-  type: 'service' | 'database' | 'queue'
+  type: 'service' | 'database' | 'queue' | 'api'
   name: string
   position: { x: number; y: number }
   language?: string
   port?: number
   engine?: string
   provider?: string
-  endpoints?: string[]
-  collections?: string[]
+  endpoints?: EndpointConfig[]
+  methods?: ServiceMethod[]
+  externalAPIs?: ExternalAPI[]
+  tables?: TableConfig[] | any[]
+  collections?: TableConfig[] | any[]
   topics?: string[]
+  gatewayConfig?: GatewayConfig
 }
 
 export interface Edge {
@@ -38,11 +97,25 @@ export interface APITestingState {
   loading: boolean
 }
 
+export interface ProjectSettings {
+  environmentVariables: Record<string, string>
+  aiApiKeys: {
+    openai?: string
+    anthropic?: string
+    gemini?: string
+    groq?: string
+  }
+}
+
 interface DiagramStore {
   nodes: Node[]
   edges: Edge[]
   selectedNode: Node | null
   apiTesting: APITestingState
+  isChatbotExpanded: boolean
+  viewMode: 'graph' | 'code' | 'test'
+  projectSettings: ProjectSettings
+  showProjectSettings: boolean
   
   setNodes: (nodes: Node[]) => void
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void
@@ -54,6 +127,11 @@ interface DiagramStore {
   removeEdge: (edgeId: string) => void
   
   setSelectedNode: (node: Node | null) => void
+  setIsChatbotExpanded: (expanded: boolean) => void
+  setViewMode: (viewMode: 'graph' | 'code' | 'test') => void
+  
+  setProjectSettings: (settings: Partial<ProjectSettings>) => void
+  setShowProjectSettings: (show: boolean) => void
   
   setAPITesting: (testing: Partial<APITestingState>) => void
   resetAPITesting: () => void
@@ -76,6 +154,16 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
   edges: [],
   selectedNode: null,
   apiTesting: defaultAPITesting,
+  isChatbotExpanded: true,
+  viewMode: 'graph',
+  projectSettings: {
+    environmentVariables: {
+      'PORT': '8080',
+      'NODE_ENV': 'development',
+    },
+    aiApiKeys: {}
+  },
+  showProjectSettings: false,
 
   setNodes: (nodes) => set({ nodes }),
   updateNodePosition: (nodeId, position) =>
@@ -101,6 +189,11 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
     })),
 
   setSelectedNode: (node) => set({ selectedNode: node }),
+  setIsChatbotExpanded: (expanded) => set({ isChatbotExpanded: expanded }),
+  setViewMode: (viewMode) => set({ viewMode }),
+
+  setProjectSettings: (projectSettings) => set((state) => ({ projectSettings: { ...state.projectSettings, ...projectSettings } })),
+  setShowProjectSettings: (showProjectSettings) => set({ showProjectSettings }),
 
   setAPITesting: (testing) =>
     set((state) => ({

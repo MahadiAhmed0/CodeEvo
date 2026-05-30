@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import ReactFlow, {
   Node,
   Edge,
@@ -15,16 +15,52 @@ import ReactFlow, {
 import 'reactflow/dist/style.css'
 import { DiagramNode } from './diagram-node'
 import { useDiagramStore } from '@/lib/store'
-import { Download, Plus, Zap, X, Code2, Network } from 'lucide-react'
+import { Download, Plus, Zap, X, Code2, Network, Server, Database, Layers, Upload, FileJson, Terminal, Play } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { APITestingModal } from './api-testing-modal'
+import { APITester } from './api-tester'
 import { CodeViewer } from './code-viewer'
+import { CustomEdge } from './custom-edge'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const nodeTypes = {
   diagram: DiagramNode,
 }
 
+const edgeTypes = {
+  custom: CustomEdge,
+}
+
 const initialNodes: Node[] = [
+  {
+    id: '0',
+    data: {
+      type: 'api',
+      name: 'MainGateway',
+      port: 8000,
+      gatewayConfig: {
+        platform: 'express-proxy',
+        routes: [
+          { id: 'r1', pathPrefix: '/api/users', targetService: 'UserService', targetPort: 8080, methods: ['ALL'], stripPrefix: true },
+          { id: 'r2', pathPrefix: '/api/orders', targetService: 'OrderService', targetPort: 8081, methods: ['ALL'], stripPrefix: true },
+          { id: 'r3', pathPrefix: '/api/payments', targetService: 'PaymentService', targetPort: 9000, methods: ['POST'], stripPrefix: false }
+        ],
+        auth: { enabled: true, type: 'jwt' },
+        rateLimit: { enabled: true, requestsPerMinute: 100 },
+        cors: { enabled: true, allowedOrigins: ['https://codeevo.com'] },
+      },
+    },
+    position: { x: 450, y: 50 },
+    type: 'diagram',
+  },
   {
     id: '1',
     data: {
@@ -32,9 +68,14 @@ const initialNodes: Node[] = [
       name: 'UserService',
       language: 'spring-boot',
       port: 8080,
-      endpoints: ['/users', '/users/{id}', '/users/{id}/profile'],
+      methods: [
+        { name: 'createUser', description: 'Register a new user account', type: 'mutation' },
+        { name: 'getUserById', description: 'Fetch user details by ID', type: 'query' },
+        { name: 'updateProfile', description: 'Update user profile data', type: 'mutation' }
+      ],
+      externalAPIs: [],
     },
-    position: { x: 100, y: 100 },
+    position: { x: 100, y: 250 },
     type: 'diagram',
   },
   {
@@ -44,9 +85,14 @@ const initialNodes: Node[] = [
       name: 'OrderService',
       language: 'spring-boot',
       port: 8081,
-      endpoints: ['/orders', '/orders/{id}', '/orders/{id}/status'],
+      methods: [
+        { name: 'createOrder', description: 'Place a new order', type: 'mutation' },
+        { name: 'getOrderDetails', description: 'Fetch order by ID', type: 'query' },
+        { name: 'onPaymentProcessed', description: 'Handle payment confirmation event', type: 'handler' }
+      ],
+      externalAPIs: [],
     },
-    position: { x: 450, y: 100 },
+    position: { x: 450, y: 250 },
     type: 'diagram',
   },
   {
@@ -56,9 +102,16 @@ const initialNodes: Node[] = [
       name: 'PaymentService',
       language: 'go',
       port: 9000,
-      endpoints: ['/payments', '/payments/{id}/verify'],
+      methods: [
+        { name: 'processPayment', description: 'Charge customer via payment provider', type: 'mutation' },
+        { name: 'verifyPayment', description: 'Verify payment status with provider', type: 'query' },
+        { name: 'refundPayment', description: 'Issue a refund to customer', type: 'mutation' }
+      ],
+      externalAPIs: [
+        { name: 'Stripe', baseUrl: 'https://api.stripe.com/v1', description: 'Payment processing' }
+      ],
     },
-    position: { x: 800, y: 100 },
+    position: { x: 800, y: 250 },
     type: 'diagram',
   },
   {
@@ -67,9 +120,13 @@ const initialNodes: Node[] = [
       type: 'database',
       name: 'UserDB',
       engine: 'postgres',
-      collections: ['users', 'profiles', 'preferences'],
+      tables: [
+        { name: 'users', columns: [{ name: 'id', type: 'uuid' }, { name: 'email', type: 'varchar' }] },
+        { name: 'profiles', columns: [{ name: 'id', type: 'uuid' }, { name: 'user_id', type: 'uuid' }] },
+        { name: 'preferences', columns: [{ name: 'id', type: 'uuid' }, { name: 'theme', type: 'varchar' }] }
+      ] as any[],
     },
-    position: { x: 100, y: 350 },
+    position: { x: 100, y: 500 },
     type: 'diagram',
   },
   {
@@ -77,10 +134,14 @@ const initialNodes: Node[] = [
     data: {
       type: 'database',
       name: 'OrderDB',
-      engine: 'postgres',
-      collections: ['orders', 'order_items', 'shipments'],
+      engine: 'mongodb',
+      collections: [
+        { name: 'orders', columns: [{ name: '_id', type: 'ObjectId' }, { name: 'status', type: 'String' }] },
+        { name: 'order_items', columns: [{ name: '_id', type: 'ObjectId' }, { name: 'product', type: 'String' }] },
+        { name: 'shipments', columns: [{ name: '_id', type: 'ObjectId' }, { name: 'tracking_id', type: 'String' }] }
+      ] as any[],
     },
-    position: { x: 450, y: 350 },
+    position: { x: 450, y: 500 },
     type: 'diagram',
   },
   {
@@ -91,101 +152,75 @@ const initialNodes: Node[] = [
       provider: 'kafka',
       topics: ['order.created', 'payment.processed', 'user.registered'],
     },
-    position: { x: 800, y: 350 },
+    position: { x: 800, y: 500 },
     type: 'diagram',
   },
 ]
 
 const initialEdges: Edge[] = [
   {
+    id: 'e0-1',
+    source: '0',
+    target: '1',
+    label: 'ROUTES',
+    type: 'custom',
+    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
+  },
+  {
+    id: 'e0-2',
+    source: '0',
+    target: '2',
+    label: 'ROUTES',
+    type: 'custom',
+    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
+  },
+  {
+    id: 'e0-3',
+    source: '0',
+    target: '3',
+    label: 'ROUTES',
+    type: 'custom',
+    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
+  },
+  {
     id: 'e1-4',
     source: '1',
     target: '4',
-    label: 'DB-CONN',
+    label: 'READS/WRITES',
+    type: 'custom',
     style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-    labelBgPadding: [12, 6],
-    labelStyle: { 
-      fill: '#fcd34d',
-      fontSize: '11px',
-      fontWeight: '500',
-      fontFamily: 'system-ui, sans-serif',
-      letterSpacing: '0.02em',
-      strokeWidth: 0,
-      stroke: 'none'
-    },
   },
   {
     id: 'e2-5',
     source: '2',
     target: '5',
-    label: 'DB-CONN',
+    label: 'READS/WRITES',
+    type: 'custom',
     style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-    labelBgPadding: [12, 6],
-    labelStyle: { 
-      fill: '#fcd34d',
-      fontSize: '11px',
-      fontWeight: '500',
-      fontFamily: 'system-ui, sans-serif',
-      letterSpacing: '0.02em',
-      strokeWidth: 0,
-      stroke: 'none'
-    },
   },
   {
     id: 'e1-2',
     source: '1',
     target: '2',
-    label: 'REST API',
+    label: 'REST',
+    type: 'custom',
     style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-    labelBgPadding: [12, 6],
-    labelStyle: { 
-      fill: '#6ee7b7',
-      fontSize: '11px',
-      fontWeight: '500',
-      fontFamily: 'system-ui, sans-serif',
-      letterSpacing: '0.02em',
-      strokeWidth: 0,
-      stroke: 'none'
-    },
   },
   {
     id: 'e2-3',
     source: '2',
     target: '3',
-    label: 'REST API',
+    label: 'REST',
+    type: 'custom',
     style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-    labelBgPadding: [12, 6],
-    labelStyle: { 
-      fill: '#6ee7b7',
-      fontSize: '11px',
-      fontWeight: '500',
-      fontFamily: 'system-ui, sans-serif',
-      letterSpacing: '0.02em',
-      strokeWidth: 0,
-      stroke: 'none'
-    },
   },
   {
     id: 'e2-6',
     source: '2',
     target: '6',
-    label: 'EVENTS',
+    label: 'PUBLISHES',
+    type: 'custom',
     style: { stroke: '#c74cf0', strokeDasharray: '4,4', strokeWidth: 1.5 },
-    labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-    labelBgPadding: [12, 6],
-    labelStyle: { 
-      fill: '#f0abfc',
-      fontSize: '11px',
-      fontWeight: '500',
-      fontFamily: 'system-ui, sans-serif',
-      letterSpacing: '0.02em',
-      strokeWidth: 0,
-      stroke: 'none'
-    },
   },
 ]
 
@@ -239,9 +274,8 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
   }, [edges, projectId])
 
   const [showNodeMenu, setShowNodeMenu] = useState(false)
-  const [showAPIModal, setShowAPIModal] = useState(false)
-  const [viewMode, setViewMode] = useState<'graph' | 'code'>('graph')
-  const { setSelectedNode: storeSetSelectedNode } = useDiagramStore()
+  const [showJsonMenu, setShowJsonMenu] = useState(false)
+  const { setSelectedNode: storeSetSelectedNode, isChatbotExpanded, viewMode, setViewMode } = useDiagramStore()
 
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -249,19 +283,9 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         addEdge(
           {
             ...connection,
-            style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
+            type: 'custom',
             label: 'CONNECTION',
-            labelBgStyle: { fill: '#0a0e1a', rx: 6, fillOpacity: 0.9, stroke: 'none' },
-            labelBgPadding: [12, 6],
-            labelStyle: { 
-              fill: '#c4b5fd',
-              fontSize: '11px',
-              fontWeight: '500',
-              fontFamily: 'system-ui, sans-serif',
-              letterSpacing: '0.02em',
-              strokeWidth: 0,
-              stroke: 'none'
-            },
+            style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
           },
           eds
         )
@@ -281,9 +305,12 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         port: node.data.port,
         engine: node.data.engine,
         provider: node.data.provider,
-        endpoints: node.data.endpoints,
+        methods: node.data.methods,
+        externalAPIs: node.data.externalAPIs,
+        tables: node.data.tables,
         collections: node.data.collections,
         topics: node.data.topics,
+        gatewayConfig: node.data.gatewayConfig,
       })
     }
   }, [setSelectedNode])
@@ -292,19 +319,179 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
     if (setSelectedNode) setSelectedNode(null)
   }, [setSelectedNode])
 
-  const addNewNode = (type: 'service' | 'database' | 'queue') => {
+  const reactFlowWrapper = useRef<HTMLDivElement>(null)
+  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null)
+  const [nodeToDelete, setNodeToDelete] = useState<string | null>(null)
+
+  const requestDeleteNode = useCallback((nodeId: string) => {
+    setNodeToDelete(nodeId)
+  }, [])
+
+  const confirmDeleteNode = useCallback(() => {
+    if (nodeToDelete) {
+      setNodes((nds) => nds.filter((n) => n.id !== nodeToDelete))
+      setEdges((eds) => eds.filter((e) => e.source !== nodeToDelete && e.target !== nodeToDelete))
+      if (selectedNode?.id === nodeToDelete && setSelectedNode) {
+        setSelectedNode(null)
+      }
+      setNodeToDelete(null)
+    }
+  }, [nodeToDelete, setNodes, setEdges, selectedNode, setSelectedNode])
+
+  const cancelDeleteNode = useCallback(() => {
+    setNodeToDelete(null)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNode) {
+        // Prevent deletion if we're focused on an input field
+        if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+          return
+        }
+        requestDeleteNode(selectedNode.id)
+      }
+    }
+
+    const handleDeleteEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: string }>
+      if (customEvent.detail?.id) {
+        requestDeleteNode(customEvent.detail.id)
+      }
+    }
+
+    const handleUpdateEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ id: string, data: any }>
+      if (customEvent.detail?.id && customEvent.detail?.data) {
+        setNodes((nds) => nds.map((n) => {
+          if (n.id === customEvent.detail.id) {
+            return {
+              ...n,
+              data: {
+                ...n.data,
+                ...customEvent.detail.data
+              }
+            }
+          }
+          return n
+        }))
+        
+        // Ensure this updater is called outside of the setNodes mapping!
+        if (selectedNode?.id === customEvent.detail.id && setSelectedNode) {
+          setSelectedNode({
+            ...selectedNode,
+            ...customEvent.detail.data,
+          })
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('delete-diagram-node', handleDeleteEvent)
+    window.addEventListener('update-diagram-node', handleUpdateEvent)
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('delete-diagram-node', handleDeleteEvent)
+      window.removeEventListener('update-diagram-node', handleUpdateEvent)
+    }
+  }, [selectedNode, requestDeleteNode, setNodes, setSelectedNode])
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+  }, [])
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault()
+
+      const type = event.dataTransfer.getData('application/reactflow') as 'service' | 'database' | 'queue' | 'api'
+      if (!type || !reactFlowInstance || !reactFlowWrapper.current) {
+        return
+      }
+
+      const reactFlowBounds = reactFlowWrapper.current.getBoundingClientRect()
+      const position = reactFlowInstance.project({
+        x: event.clientX - reactFlowBounds.left,
+        y: event.clientY - reactFlowBounds.top,
+      })
+
+      const newNodeId = String(Math.max(...nodes.map(n => parseInt(n.id) || 0), 0) + 1)
+      const nodeConfig = {
+        service: {
+          name: 'NewService',
+          language: 'node.js',
+          port: 8000 + nodes.length,
+          methods: [{ name: 'handleRequest', description: 'Process incoming request', type: 'mutation' as const }],
+          externalAPIs: [],
+        },
+        api: {
+          name: 'APIGateway',
+          port: 8080,
+          gatewayConfig: {
+            platform: 'express-proxy' as const,
+            routes: [],
+            auth: { enabled: false, type: 'none' as const },
+            rateLimit: { enabled: false, requestsPerMinute: 100 },
+            cors: { enabled: true, allowedOrigins: ['*'] },
+          },
+        },
+        database: {
+          name: 'NewDB',
+          engine: 'postgres',
+          collections: ['table1', 'table2'],
+        },
+        queue: {
+          name: 'NewQueue',
+          provider: 'kafka',
+          topics: ['topic.example'],
+        },
+      }
+
+      const newNode: Node = {
+        id: newNodeId,
+        type: 'diagram',
+        position,
+        data: {
+          type,
+          ...(nodeConfig[type] || nodeConfig.service), // fallback to service if api or something else
+        },
+      }
+
+      setNodes((nds) => nds.concat(newNode))
+    },
+    [reactFlowInstance, nodes, setNodes]
+  )
+
+  const addNewNode = (type: 'service' | 'database' | 'queue' | 'api') => {
     const newNodeId = String(Math.max(...nodes.map(n => parseInt(n.id) || 0)) + 1)
     const nodeConfig = {
       service: {
         name: 'NewService',
         language: 'node.js',
         port: 8000 + nodes.length,
-        endpoints: ['/api/endpoint'],
+        methods: [{ name: 'handleRequest', description: 'Process incoming request', type: 'mutation' as const }],
+        externalAPIs: [],
+      },
+      api: {
+        name: 'APIGateway',
+        port: 8080,
+        gatewayConfig: {
+          platform: 'express-proxy' as const,
+          routes: [],
+          auth: { enabled: false, type: 'none' as const },
+          rateLimit: { enabled: false, requestsPerMinute: 100 },
+          cors: { enabled: true, allowedOrigins: ['*'] },
+        },
       },
       database: {
         name: 'NewDB',
         engine: 'postgres',
-        collections: ['table1', 'table2'],
+        tables: [
+          { name: 'table1', columns: [{ name: 'id', type: 'uuid' }] },
+          { name: 'table2', columns: [{ name: 'id', type: 'uuid' }] }
+        ] as any[],
       },
       queue: {
         name: 'NewQueue',
@@ -375,7 +562,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
   }
 
   return (
-    <div className="relative w-full h-full bg-[#0a0e1a]">
+    <div className="relative w-full h-full bg-[#0a0e1a]" ref={reactFlowWrapper} onDrop={onDrop} onDragOver={onDragOver}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -385,8 +572,10 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
         onInit={(instance) => {
+          setReactFlowInstance(instance)
           setTimeout(() => {
             // Wait for the AgentChat sidebar animation to finish (takes ~600ms) before fitting
             // fitView with larger padding automatically zooms out and guarantees it stays perfectly centered
@@ -408,7 +597,10 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
             background: '#0d1220',
             border: '1px solid rgba(255,255,255,0.06)',
             borderRadius: '12px',
-            bottom: '76px',
+            bottom: isChatbotExpanded ? '16px' : '76px',
+            right: '16px',
+            margin: 0,
+            transition: 'all 0.3s ease-in-out',
           }}
           position="bottom-right"
           maskColor="rgba(108, 59, 245, 0.08)"
@@ -416,27 +608,45 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         />
       </ReactFlow>
 
-      {/* Code View Overlay */}
+      {/* Persistent background — covers graph during code↔test transitions */}
       <AnimatePresence>
-        {viewMode === 'code' && (
-          <CodeViewer nodes={nodes} edges={edges} />
+        {viewMode !== 'graph' && (
+          <motion.div
+            key="overlay-bg"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 bg-[#06080d]"
+          />
         )}
       </AnimatePresence>
 
-      {/* Top Left - Add Node Button */}
+      {/* Code / Test View Overlay */}
+      <AnimatePresence mode="wait">
+        {viewMode === 'code' && (
+          <CodeViewer key="code-view" nodes={nodes} edges={edges} />
+        )}
+        {viewMode === 'test' && (
+          <APITester key="test-view" nodes={nodes} />
+        )}
+      </AnimatePresence>
+
+      {/* Top Toolbar - 3 column layout: Add Node | center controls | Generate Code */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="absolute top-4 left-4 z-10"
+        className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between"
       >
-        <div className="relative">
+        {/* Left - Add Node Button */}
+        <div className="relative shrink-0">
           <button
             onClick={() => setShowNodeMenu(!showNodeMenu)}
-            disabled={viewMode === 'code'}
-            className="px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white rounded-xl text-[13px] font-semibold flex items-center gap-2 hover:shadow-lg hover:shadow-purple-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={viewMode !== 'graph'}
+            className="px-4 py-2 bg-[#6c3bf5] hover:bg-[#5b2cd6] text-white rounded-full text-[13px] font-semibold flex items-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_15px_rgba(108,59,245,0.3)] hover:shadow-[0_0_25px_rgba(108,59,245,0.5)] disabled:hover:shadow-[0_0_15px_rgba(108,59,245,0.3)] border border-white/10"
           >
-            <Plus size={15} />
+            <Plus size={16} strokeWidth={2.5} />
             Add Node
           </button>
 
@@ -446,19 +656,22 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
                 initial={{ opacity: 0, scale: 0.95, y: -4 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                className="absolute top-full left-0 mt-2 bg-[#0d1220]/95 backdrop-blur-xl rounded-xl shadow-2xl border border-white/[0.08] overflow-hidden min-w-[180px]"
+                className="absolute top-full left-0 mt-3 bg-[#0f1423]/95 backdrop-blur-xl rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden min-w-[200px] z-50 p-1.5"
               >
                 {[
-                  { type: 'service' as const, icon: '⚙️', label: 'Service', color: 'hover:bg-purple-500/10' },
-                  { type: 'database' as const, icon: '🗄️', label: 'Database', color: 'hover:bg-amber-500/10' },
-                  { type: 'queue' as const, icon: '📬', label: 'Queue', color: 'hover:bg-pink-500/10' },
+                  { type: 'service' as const, icon: Server, label: 'Service Component', color: 'text-purple-400', bgHover: 'hover:bg-purple-500/10' },
+                  { type: 'database' as const, icon: Database, label: 'Database System', color: 'text-amber-400', bgHover: 'hover:bg-amber-500/10' },
+                  { type: 'queue' as const, icon: Layers, label: 'Message Queue', color: 'text-pink-400', bgHover: 'hover:bg-pink-500/10' },
+                  { type: 'api' as const, icon: Network, label: 'API Gateway', color: 'text-emerald-400', bgHover: 'hover:bg-emerald-500/10' },
                 ].map(item => (
                   <button
                     key={item.type}
                     onClick={() => addNewNode(item.type)}
-                    className={`w-full px-4 py-2.5 text-left text-white/70 hover:text-white text-[13px] font-medium border-b border-white/[0.04] last:border-0 flex items-center gap-2.5 transition-all duration-200 ${item.color}`}
+                    className={`w-full px-3 py-2.5 text-left text-white/80 hover:text-white text-[13px] font-medium rounded-lg flex items-center gap-3 transition-all duration-200 ${item.bgHover}`}
                   >
-                    <span className="text-base">{item.icon}</span>
+                    <div className={`p-1.5 rounded-md bg-white/[0.03] shadow-inner border border-white/[0.05] ${item.color}`}>
+                      <item.icon size={16} strokeWidth={2} />
+                    </div>
                     {item.label}
                   </button>
                 ))}
@@ -466,61 +679,92 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
             )}
           </AnimatePresence>
         </div>
-      </motion.div>
 
-      {/* Top Right Controls */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="absolute top-4 right-4 flex gap-4 z-10"
-      >
-        {/* View Toggle */}
-        <div className="flex bg-[#0d1220]/90 backdrop-blur-sm p-1 rounded-xl border border-white/[0.08]">
-          <button
-            onClick={() => setViewMode('graph')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'graph' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
-          >
-            <Network size={14} />
-            Graph
-          </button>
-          <button
-            onClick={() => setViewMode('code')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'code' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
-          >
-            <Code2 size={14} />
-            Code
-          </button>
-        </div>
+        {/* Center - View Toggle + JSON + Download Code */}
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3">
+          {/* View Toggle */}
+          <div className="flex bg-[#0d1220]/90 backdrop-blur-sm p-1 rounded-xl border border-white/[0.08]">
+            <button
+              onClick={() => setViewMode('graph')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'graph' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
+            >
+              <Network size={14} />
+              Graph
+            </button>
+            <button
+              onClick={() => setViewMode('code')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'code' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
+            >
+              <Code2 size={14} />
+              Code
+            </button>
+            <button
+              onClick={() => setViewMode('test')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] font-medium transition-all ${viewMode === 'test' ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/40 hover:text-white/70'}`}
+            >
+              <Zap size={14} />
+              Test
+            </button>
+          </div>
 
-        {/* Actions */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowAPIModal(true)}
-            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
-          >
-            <Zap size={14} className="text-amber-400/70" />
-            API Test
-          </button>
-          <button
-            onClick={importDiagram}
-            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
-          >
-            <Plus size={14} />
-            Import JSON
-          </button>
-          <button
-            onClick={exportDiagram}
-            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
-          >
-            <Download size={14} />
-            Export JSON
-          </button>
+          {/* JSON Data */}
+          <div className="relative">
+            <button
+              onClick={() => setShowJsonMenu(!showJsonMenu)}
+              className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
+            >
+              <FileJson size={14} />
+              JSON Data
+            </button>
+            <AnimatePresence>
+              {showJsonMenu && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 4 }}
+                  className="absolute top-full right-0 mt-3 bg-[#0f1423]/95 backdrop-blur-xl rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden min-w-[200px] z-50 p-1.5"
+                >
+                  <button
+                    onClick={() => { importDiagram(); setShowJsonMenu(false); }}
+                    className="w-full px-3 py-2.5 text-left text-white/80 hover:text-white text-[13px] font-medium rounded-lg flex items-center gap-3 transition-all duration-200 hover:bg-emerald-500/10"
+                  >
+                    <div className="p-1.5 rounded-md bg-white/[0.03] shadow-inner border border-white/[0.05] text-emerald-400">
+                      <Upload size={16} strokeWidth={2} />
+                    </div>
+                    Import JSON
+                  </button>
+                  <button
+                    onClick={() => { exportDiagram(); setShowJsonMenu(false); }}
+                    className="w-full px-3 py-2.5 text-left text-white/80 hover:text-white text-[13px] font-medium rounded-lg flex items-center gap-3 transition-all duration-200 hover:bg-blue-500/10"
+                  >
+                    <div className="p-1.5 rounded-md bg-white/[0.03] shadow-inner border border-white/[0.05] text-blue-400">
+                      <Download size={16} strokeWidth={2} />
+                    </div>
+                    Export JSON
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Download Code */}
           <button
             className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
           >
             <Code2 size={14} />
             Download Code
+          </button>
+        </div>
+
+        {/* Right - Generate Code Button */}
+        <div className="shrink-0">
+          <button
+            onClick={() => setViewMode('code')}
+            disabled={viewMode !== 'graph'}
+            className="px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white rounded-xl text-[13px] font-semibold flex items-center gap-2 hover:shadow-[0_0_15px_rgba(199,76,240,0.4)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+          >
+            <Play size={15} className="fill-current" />
+            Generate Code
           </button>
         </div>
       </motion.div>
@@ -537,12 +781,31 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         <span className="font-mono text-purple-400/40">v1.2.0</span>
       </div>
 
-      {/* API Testing Modal */}
-      <APITestingModal 
-        isOpen={showAPIModal} 
-        onClose={() => setShowAPIModal(false)}
-        selectedNode={selectedNode || nodes[0]}
-      />
+      {/* Delete Confirmation Modal */}
+      <AlertDialog open={!!nodeToDelete} onOpenChange={(isOpen) => !isOpen && cancelDeleteNode()}>
+        <AlertDialogContent className="bg-[#0d1220] border border-white/[0.08] text-white/90">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Node</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/60">
+              Are you sure you want to delete this node? This action cannot be undone and will remove all connected edges.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={cancelDeleteNode}
+              className="bg-white/[0.04] text-white hover:bg-white/[0.08] border-white/[0.08] hover:text-white"
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteNode}
+              className="bg-red-500/80 hover:bg-red-500 text-white border-0"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
