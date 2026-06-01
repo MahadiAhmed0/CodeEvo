@@ -48,8 +48,8 @@ export default function AuthPage() {
 
       {/* Left side: Form */}
       <div className="flex-1 flex flex-col justify-center px-6 py-12 sm:px-12 lg:px-24 z-10 relative">
-        <Link href="/" className="absolute top-8 left-6 sm:left-12 lg:left-24 z-20 hover:opacity-80 transition-opacity">
-          <div className="relative w-32 h-8">
+        <Link href="/" className="absolute top-[8px] left-[16px] z-20 flex items-center gap-2 min-w-fit pr-3 hover:opacity-80 transition-opacity">
+          <div className="relative w-36 h-10">
             <Image src="/logo.png" alt="CodeEvo" fill className="object-contain object-left" priority />
           </div>
         </Link>
