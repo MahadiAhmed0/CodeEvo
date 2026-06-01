@@ -10,19 +10,20 @@ export default function Home() {
       <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-[#c74cf0]/10 blur-[150px] rounded-full pointer-events-none" />
 
       {/* Navigation */}
-      <nav className="relative z-10 flex items-center justify-between px-6 py-4 max-w-7xl mx-auto w-full">
-        <div className="flex items-center gap-2">
-          <div className="relative w-32 h-8">
-            <Image 
-              src="/logo.png" 
-              alt="CodeEvo" 
-              fill
-              className="object-contain object-left"
-              priority
-            />
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
+      <nav className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#0a0e1a]/80 backdrop-blur-xl">
+        <div className="flex items-center justify-between h-14 px-4 gap-3">
+          <Link href="/" className="flex items-center gap-2 min-w-fit pr-3">
+            <div className="relative w-36 h-10">
+              <Image 
+                src="/logo.png" 
+                alt="CodeEvo" 
+                fill
+                className="object-contain object-left"
+                priority
+              />
+            </div>
+          </Link>
+          <div className="flex items-center gap-4">
           <Link 
             href="/auth" 
             className="text-sm font-medium text-white/70 hover:text-white transition-colors"
@@ -35,6 +36,7 @@ export default function Home() {
           >
             Get Started
           </Link>
+        </div>
         </div>
       </nav>
 
