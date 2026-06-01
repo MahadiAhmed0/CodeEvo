@@ -10,9 +10,19 @@ export default function AuthPage() {
   const router = useRouter()
   const [isLogin, setIsLogin] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    setError('')
+    
+    if (!isLogin && password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
     setIsLoading(true)
     // Simulate network request
     setTimeout(() => {
@@ -38,15 +48,14 @@ export default function AuthPage() {
 
       {/* Left side: Form */}
       <div className="flex-1 flex flex-col justify-center px-6 py-12 sm:px-12 lg:px-24 z-10 relative">
-        <Link href="/" className="absolute top-8 left-6 sm:left-12 lg:left-24 text-white/50 hover:text-white transition-colors flex items-center gap-2 text-sm font-medium">
-          <ArrowRight className="w-4 h-4 rotate-180" /> Back to Home
+        <Link href="/" className="absolute top-8 left-6 sm:left-12 lg:left-24 z-20 hover:opacity-80 transition-opacity">
+          <div className="relative w-32 h-8">
+            <Image src="/logo.png" alt="CodeEvo" fill className="object-contain object-left" priority />
+          </div>
         </Link>
 
-        <div className="w-full max-w-sm mx-auto">
+        <div className="w-full max-w-sm mx-auto mt-8">
           <div className="mb-10 text-center md:text-left">
-            <div className="relative w-32 h-8 mb-8 mx-auto md:mx-0">
-              <Image src="/logo.png" alt="CodeEvo" fill className="object-contain object-center md:object-left" priority />
-            </div>
             <h2 className="text-3xl font-bold tracking-tight mb-2">
               {isLogin ? 'Welcome back' : 'Create an account'}
             </h2>
@@ -60,7 +69,7 @@ export default function AuthPage() {
           {/* Toggle Tabs */}
           <div className="bg-white/[0.04] border border-white/[0.08] p-1 rounded-xl flex mb-8">
             <button
-              onClick={() => setIsLogin(true)}
+              onClick={() => { setIsLogin(true); setError(''); }}
               className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                 isLogin ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80'
               }`}
@@ -68,7 +77,7 @@ export default function AuthPage() {
               Sign In
             </button>
             <button
-              onClick={() => setIsLogin(false)}
+              onClick={() => { setIsLogin(false); setError(''); }}
               className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                 !isLogin ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80'
               }`}
@@ -109,19 +118,19 @@ export default function AuthPage() {
           </div>
 
           {/* Email Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isLogin ? 'max-h-0 opacity-0' : 'max-h-[100px] opacity-100'}`}>
               <div className="space-y-1.5">
                 <label htmlFor="name" className="text-sm font-medium text-white/80">Full Name</label>
                 <input 
                   id="name" 
                   type="text" 
-                  required
+                  required={!isLogin}
                   placeholder="John Doe"
                   className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/50 focus:bg-white/[0.05] transition-all"
                 />
               </div>
-            )}
+            </div>
             
             <div className="space-y-1.5">
               <label htmlFor="email" className="text-sm font-medium text-white/80">Email address</label>
@@ -147,10 +156,31 @@ export default function AuthPage() {
                 id="password" 
                 type="password" 
                 required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/50 focus:bg-white/[0.05] transition-all"
               />
             </div>
+
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isLogin ? 'max-h-0 opacity-0' : 'max-h-[100px] opacity-100'}`}>
+              <div className="space-y-1.5">
+                <label htmlFor="confirmPassword" className="text-sm font-medium text-white/80">Confirm Password</label>
+                <input 
+                  id="confirmPassword" 
+                  type="password" 
+                  required={!isLogin}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/50 focus:bg-white/[0.05] transition-all"
+                />
+              </div>
+            </div>
+
+            {error && (
+              <p className="text-xs text-red-400 mt-1 font-medium bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">{error}</p>
+            )}
 
             <button 
               type="submit" 
@@ -164,6 +194,12 @@ export default function AuthPage() {
               )}
             </button>
           </form>
+
+          <div className="mt-8 text-center md:text-left">
+            <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-white/40 hover:text-white/80 transition-colors">
+              <ArrowRight className="w-4 h-4 rotate-180" /> Back to landing page
+            </Link>
+          </div>
         </div>
       </div>
 
