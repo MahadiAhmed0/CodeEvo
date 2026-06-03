@@ -204,7 +204,7 @@ const initialEdges: Edge[] = [
     target: '2',
     label: 'REST',
     type: 'custom',
-    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
+    style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
   },
   {
     id: 'e2-3',
@@ -212,7 +212,7 @@ const initialEdges: Edge[] = [
     target: '3',
     label: 'REST',
     type: 'custom',
-    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
+    style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
   },
   {
     id: 'e2-6',
@@ -279,19 +279,28 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      const sourceNode = nodes.find(n => n.id === connection.source)
+      const targetNode = nodes.find(n => n.id === connection.target)
+      
+      const isServiceToService = 
+        sourceNode?.data?.type === 'service' && 
+        targetNode?.data?.type === 'service'
+        
+      const edgeColor = isServiceToService ? '#6c3bf5' : '#10b981'
+
       setEdges((eds) =>
         addEdge(
           {
             ...connection,
             type: 'custom',
             label: 'CONNECTION',
-            style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
+            style: { stroke: edgeColor, strokeDasharray: '4,4', strokeWidth: 1.5 },
           },
           eds
         )
       )
     },
-    [setEdges]
+    [setEdges, nodes]
   )
 
   const onNodeClick = useCallback((_: any, node: Node) => {

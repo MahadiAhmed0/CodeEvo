@@ -12,7 +12,8 @@ import {
   Settings,
   Search,
   CheckCircle2,
-  GitBranch
+  GitBranch,
+  AlertCircle
 } from 'lucide-react'
 
 // Basic syntax highlighting colors
@@ -289,6 +290,21 @@ export function CodeViewer({ nodes, edges }: CodeViewerProps) {
   const { setShowProjectSettings } = useDiagramStore()
   const fileTree = useMemo(() => generateMockFiles(nodes), [nodes])
   const [activeFile, setActiveFile] = useState<any>(fileTree['system_architecture.json'])
+  const [activeTab, setActiveTab] = useState<'terminal' | 'logs' | 'problems'>('terminal')
+
+  // Mock terminal logs
+  const terminalLogs = [
+    "[10:00:01 AM] Starting UserService on port 8080...",
+    "[10:00:02 AM] Starting OrderService on port 8081...",
+    "[10:00:05 AM] ERROR: Connection to PaymentService (port 9000) failed. Connection refused.",
+    "[10:00:08 AM] WARN: OrderService DB URI not found, using fallback in-memory store.",
+    "[10:00:10 AM] SUCCESS: All services up and running."
+  ]
+
+  const problems = [
+    { id: 'ERR-USER-01', type: 'error', message: 'Connection to PaymentService (port 9000) failed. Connection refused.', file: 'UserService/main.go', line: 42 },
+    { id: 'WARN-ORD-01', type: 'warning', message: 'OrderService DB URI not found, using fallback in-memory store.', file: 'OrderService/application.yml', line: 15 }
+  ]
 
   // Syntax highlighting mock (very basic)
   const renderCode = (content: string) => {
@@ -376,26 +392,87 @@ export function CodeViewer({ nodes, edges }: CodeViewerProps) {
       {/* Terminal / Logs Area */}
       <div className="h-48 border-t border-white/[0.06] bg-[#0a0e1a] flex flex-col">
         <div className="flex gap-4 px-4 h-9 border-b border-white/[0.06] items-center text-[12px] uppercase tracking-wider font-semibold">
-          <div className="text-gray-500 hover:text-gray-300 cursor-pointer">Terminal</div>
-          <div className="text-purple-400 border-b-2 border-purple-400 pb-2 translate-y-[1px]">Logs</div>
-          <div className="text-gray-500 hover:text-gray-300 cursor-pointer">Problems</div>
+          <div 
+            onClick={() => setActiveTab('terminal')}
+            className={`cursor-pointer ${activeTab === 'terminal' ? 'text-purple-400 border-b-2 border-purple-400 pb-2 translate-y-[1px]' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            Terminal
+          </div>
+          <div 
+            onClick={() => setActiveTab('logs')}
+            className={`cursor-pointer ${activeTab === 'logs' ? 'text-purple-400 border-b-2 border-purple-400 pb-2 translate-y-[1px]' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            Logs
+          </div>
+          <div 
+            onClick={() => setActiveTab('problems')}
+            className={`cursor-pointer flex items-center gap-1.5 ${activeTab === 'problems' ? 'text-purple-400 border-b-2 border-purple-400 pb-2 translate-y-[1px]' : 'text-gray-500 hover:text-gray-300'}`}
+          >
+            Problems
+            <span className="bg-red-500/20 text-red-400 rounded-full px-1.5 py-0.5 text-[10px] leading-none">{problems.length}</span>
+          </div>
         </div>
         <div className="flex-1 p-3 overflow-y-auto text-[12px] text-gray-400 font-mono space-y-1">
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400">[INFO]</span>
-            <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-            <span>Workspace initialized successfully.</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-emerald-400"><CheckCircle2 size={14} /></span>
-            <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-            <span className="text-emerald-400">Services synced with architecture graph.</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="text-blue-400">[SYSTEM]</span>
-            <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-            <span>Ready for development. Select a file in the explorer to view the generated source code.</span>
-          </div>
+          {activeTab === 'terminal' && (
+            <div className="space-y-1">
+              {terminalLogs.map((log, index) => (
+                <div key={index} className={`flex items-start gap-2 ${log.includes('ERROR') ? 'text-red-400' : log.includes('WARN') ? 'text-orange-400' : log.includes('SUCCESS') ? 'text-emerald-400' : 'text-gray-400'}`}>
+                  <span>{log}</span>
+                </div>
+              ))}
+              <div className="flex items-start gap-2 mt-2 text-gray-300">
+                <span className="text-emerald-500">➜</span>
+                <span>/workspace</span>
+                <span className="animate-pulse">_</span>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'logs' && (
+            <>
+              <div className="flex items-start gap-2">
+                <span className="text-blue-400">[INFO]</span>
+                <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
+                <span>Workspace initialized successfully.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-emerald-400"><CheckCircle2 size={14} /></span>
+                <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
+                <span className="text-emerald-400">Services synced with architecture graph.</span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="text-blue-400">[SYSTEM]</span>
+                <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
+                <span>Ready for development. Select a file in the explorer to view the generated source code.</span>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'problems' && (
+            <div className="space-y-2">
+              {problems.map((problem) => (
+                <div key={problem.id} className="flex flex-col gap-1 bg-white/[0.02] p-2 rounded border border-white/[0.04]">
+                  <div className="flex items-center gap-2">
+                    {problem.type === 'error' ? (
+                      <AlertCircle size={14} className="text-red-400" />
+                    ) : (
+                      <AlertCircle size={14} className="text-orange-400" />
+                    )}
+                    <span className={problem.type === 'error' ? 'text-red-400 font-semibold' : 'text-orange-400 font-semibold'}>
+                      {problem.id}
+                    </span>
+                    <span className="text-gray-500">in {problem.file}:{problem.line}</span>
+                  </div>
+                  <div className="text-gray-300 ml-6">{problem.message}</div>
+                  <div className="ml-6 mt-1 flex gap-2">
+                    <button className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded hover:bg-purple-500/30 transition-colors">
+                      Send to AI Agent
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </motion.div>
