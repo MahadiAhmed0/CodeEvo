@@ -25,6 +25,8 @@ const EDGE_LABELS = ['ROUTES', 'REST', 'gRPC', 'GRAPHQL', 'READS/WRITES', 'PUBLI
 
 export function CustomEdge({
   id,
+  source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -36,7 +38,7 @@ export function CustomEdge({
   label,
   selected,
 }: EdgeProps) {
-  const { setEdges } = useReactFlow()
+  const { setEdges, getNode } = useReactFlow()
   
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -50,6 +52,13 @@ export function CustomEdge({
   const [isHovered, setIsHovered] = useState(false)
 
   const handleLabelChange = (newLabel: string) => {
+    const sourceNode = getNode(source)
+    const targetNode = getNode(target)
+    
+    const isServiceToService = 
+      sourceNode?.data?.type === 'service' && 
+      targetNode?.data?.type === 'service'
+
     setEdges((eds) =>
       eds.map((edge) => {
         if (edge.id === id) {
@@ -58,11 +67,11 @@ export function CustomEdge({
             label: newLabel,
             labelStyle: {
               ...(edge.labelStyle as any),
-              fill: newLabel === 'READS/WRITES' ? '#fcd34d' : newLabel === 'PUBLISHES' || newLabel === 'SUBSCRIBES' ? '#f0abfc' : newLabel === 'ROUTES' || newLabel === 'REST' || newLabel === 'gRPC' || newLabel === 'GRAPHQL' ? '#6ee7b7' : '#c4b5fd',
+              fill: isServiceToService ? '#c4b5fd' : (newLabel === 'READS/WRITES' ? '#fcd34d' : newLabel === 'PUBLISHES' || newLabel === 'SUBSCRIBES' ? '#f0abfc' : newLabel === 'ROUTES' || newLabel === 'REST' || newLabel === 'gRPC' || newLabel === 'GRAPHQL' ? '#6ee7b7' : '#c4b5fd'),
             },
             style: {
               ...edge.style,
-              stroke: newLabel === 'READS/WRITES' ? '#f59e0b' : newLabel === 'PUBLISHES' || newLabel === 'SUBSCRIBES' ? '#c74cf0' : newLabel === 'ROUTES' || newLabel === 'REST' || newLabel === 'gRPC' || newLabel === 'GRAPHQL' ? '#10b981' : '#6c3bf5',
+              stroke: isServiceToService ? '#6c3bf5' : (newLabel === 'READS/WRITES' ? '#f59e0b' : newLabel === 'PUBLISHES' || newLabel === 'SUBSCRIBES' ? '#c74cf0' : newLabel === 'ROUTES' || newLabel === 'REST' || newLabel === 'gRPC' || newLabel === 'GRAPHQL' ? '#10b981' : '#6c3bf5'),
             }
           }
         }
