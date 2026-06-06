@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, Suspense } from 'react'
+import { useEffect, useRef, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Navbar } from '@/components/navbar'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -18,8 +18,454 @@ import {
   Lock,
   Clock,
   Zap,
-  CheckCircle2
+  CheckCircle2,
+  Loader2,
+  Upload,
+  Eye,
+  EyeOff,
+  X,
 } from 'lucide-react'
+import { useAuthStore } from '@/lib/auth-store'
+import { userApi } from '@/lib/api'
+import { toast } from 'sonner'
+
+// ─── Password Change Modal ────────────────────────────────────────────────────
+
+function PasswordModal({ onClose }: { onClose: () => void }) {
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showOld, setShowOld] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (newPassword !== confirmPassword) {
+      setError('New passwords do not match.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await userApi.updatePassword({ oldPassword, newPassword })
+      toast.success('Password updated successfully.')
+      onClose()
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to update password.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.15 }}
+        className="w-full max-w-md mx-4 bg-[#0d1220] border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/60 p-6"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-white">Change Password</h3>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/[0.06] transition-all"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Old Password */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-white/60">Current Password</label>
+            <div className="relative">
+              <input
+                type={showOld ? 'text' : 'password'}
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full pr-10 px-4 py-2.5 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white/90 text-sm outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShowOld((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+              >
+                {showOld ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* New Password */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-white/60">New Password</label>
+            <div className="relative">
+              <input
+                type={showNew ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full pr-10 px-4 py-2.5 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white/90 text-sm outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNew((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+              >
+                {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-white/30">
+              8–32 chars, must include uppercase, lowercase, number and special character (@$!%*?&)
+            </p>
+          </div>
+
+          {/* Confirm New Password */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-white/60">Confirm New Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              placeholder="••••••••"
+              className="w-full px-4 py-2.5 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white/90 text-sm outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all"
+            />
+          </div>
+
+          {/* Error */}
+          {error && (
+            <p className="text-xs text-red-400 font-medium bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
+              {error}
+            </p>
+          )}
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              className="flex-1 bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="flex-1 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white hover:shadow-lg hover:shadow-purple-500/20 border-0"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Update Password'}
+            </Button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  )
+}
+
+// ─── Profile Tab ──────────────────────────────────────────────────────────────
+
+function ProfileTab() {
+  const { user, updateUser } = useAuthStore()
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  const [firstName, setFirstName] = useState(user?.firstName ?? '')
+  const [lastName, setLastName] = useState(user?.lastName ?? '')
+  const [email, setEmail] = useState(user?.email ?? '')
+  const [saving, setSaving] = useState(false)
+  const [avatarLoading, setAvatarLoading] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [saveSuccess, setSaveSuccess] = useState(false)
+
+  // Sync if user changes (e.g. after rehydration)
+  useEffect(() => {
+    if (user) {
+      setFirstName(user.firstName)
+      setLastName(user.lastName)
+      setEmail(user.email)
+    }
+  }, [user])
+
+  const avatarUrl = user?.avatar ? userApi.avatarUrl(user.avatar) : null
+  const initials = user
+    ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase()
+    : '?'
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const allowed = ['image/jpeg', 'image/png', 'image/gif']
+    if (!allowed.includes(file.type)) {
+      toast.error('Only JPG, PNG or GIF files are allowed.')
+      return
+    }
+    if (file.size > 1_048_576) {
+      toast.error('File size must be under 1 MB.')
+      return
+    }
+
+    setAvatarLoading(true)
+    try {
+      const updatedUser = await userApi.uploadAvatar(file)
+      updateUser(updatedUser)
+      toast.success('Avatar updated!')
+    } catch (err: any) {
+      toast.error(err.message ?? 'Failed to upload avatar.')
+    } finally {
+      setAvatarLoading(false)
+      // Reset input so the same file can be re-selected
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
+    }
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaveError('')
+    setSaveSuccess(false)
+    setSaving(true)
+
+    const nameChanged = firstName !== user?.firstName || lastName !== user?.lastName
+    const emailChanged = email !== user?.email
+
+    try {
+      let latestUser = user!
+
+      if (nameChanged) {
+        latestUser = await userApi.updateName({ firstName, lastName })
+        updateUser(latestUser)
+      }
+
+      if (emailChanged) {
+        latestUser = await userApi.updateEmail({ email })
+        updateUser(latestUser)
+      }
+
+      if (!nameChanged && !emailChanged) {
+        toast.info('No changes to save.')
+        return
+      }
+
+      setSaveSuccess(true)
+      toast.success('Profile updated successfully.')
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (err: any) {
+      setSaveError(err.message ?? 'Failed to save changes.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
+        <h2 className="text-lg font-semibold text-white/90 mb-6">Profile Information</h2>
+
+        <div className="flex items-center gap-6 mb-8">
+          {/* Avatar */}
+          <div className="relative">
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] flex items-center justify-center text-white text-3xl font-bold shadow-lg shadow-purple-500/20">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                initials
+              )}
+            </div>
+            {avatarLoading && (
+              <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-white" />
+              </div>
+            )}
+          </div>
+          <div>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+            <Button
+              variant="outline"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={avatarLoading}
+              className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08] mb-2 gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              {avatarLoading ? 'Uploading…' : 'Change Avatar'}
+            </Button>
+            <p className="text-xs text-white/40">Only JPG, GIF or PNG. 1 MB max.</p>
+          </div>
+        </div>
+
+        <form id="profile-form" onSubmit={handleSave} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white/60">First Name</label>
+              <input
+                type="text"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+                className="w-full px-4 py-2 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white/90 text-sm outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-white/60">Last Name</label>
+              <input
+                type="text"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+                className="w-full px-4 py-2 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white/90 text-sm outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-white/60">Email Address</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full px-4 py-2 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white/90 text-sm outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
+            />
+          </div>
+
+          {saveError && (
+            <p className="text-xs text-red-400 font-medium bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
+              {saveError}
+            </p>
+          )}
+        </form>
+      </div>
+
+      {/* API Keys section (UI only) */}
+      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
+        <h2 className="text-lg font-semibold text-white/90 mb-6">API Keys</h2>
+        <p className="text-sm text-white/40 mb-4">Manage your API keys for accessing the platform programmatically.</p>
+        <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/[0.04] mb-4">
+          <div className="flex items-center gap-3">
+            <Key className="w-5 h-5 text-[#6c3bf5]" />
+            <div>
+              <p className="text-sm font-medium text-white/90">Production Key</p>
+              <p className="text-xs text-white/40 mt-1">pk_live_*************************</p>
+            </div>
+          </div>
+          <Button variant="outline" className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]" size="sm">
+            Revoke
+          </Button>
+        </div>
+        <Button variant="outline" className="w-full border-dashed border-white/[0.12] bg-transparent text-white/60 hover:text-white/90 hover:bg-white/[0.02]">
+          Generate New API Key
+        </Button>
+      </div>
+
+      {/* Save Changes */}
+      <div className="flex justify-end pt-4">
+        <Button
+          form="profile-form"
+          type="submit"
+          disabled={saving}
+          className="bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white hover:shadow-lg hover:shadow-purple-500/20 border-0 gap-2"
+        >
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : saveSuccess ? (
+            <CheckCircle2 className="w-4 h-4" />
+          ) : (
+            <Save className="w-4 h-4" />
+          )}
+          {saving ? 'Saving…' : saveSuccess ? 'Saved!' : 'Save Changes'}
+        </Button>
+      </div>
+    </>
+  )
+}
+
+// ─── Security Tab ─────────────────────────────────────────────────────────────
+
+function SecurityTab() {
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+
+  return (
+    <>
+      <AnimatePresence>
+        {showPasswordModal && (
+          <PasswordModal onClose={() => setShowPasswordModal(false)} />
+        )}
+      </AnimatePresence>
+
+      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
+        <h2 className="text-lg font-semibold text-white/90 mb-6">Security Settings</h2>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+            <div className="flex items-center gap-4">
+              <div className="p-2.5 rounded-lg bg-[#10b981]/10 h-fit">
+                <Lock className="w-5 h-5 text-[#10b981]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-white/90">Password</h3>
+                <p className="text-xs text-white/40 mt-1">Change your account password</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowPasswordModal(true)}
+              className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]"
+              size="sm"
+            >
+              Update
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+            <div className="flex items-center gap-4">
+              <div className="p-2.5 rounded-lg bg-[#f59e0b]/10 h-fit">
+                <Shield className="w-5 h-5 text-[#f59e0b]" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-white/90">Two-Factor Authentication</h3>
+                <p className="text-xs text-white/40 mt-1">Add an extra layer of security to your account.</p>
+              </div>
+            </div>
+            <Button className="bg-white/[0.08] text-white hover:bg-white/[0.12] border-0" size="sm">
+              Enable 2FA
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
+        <h2 className="text-lg font-semibold text-white/90 mb-4">Active Sessions</h2>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-3 items-center">
+              <Clock className="w-4 h-4 text-white/40" />
+              <div>
+                <p className="text-sm font-medium text-white/90">Current Browser</p>
+                <p className="text-xs text-white/40">Current Session</p>
+              </div>
+            </div>
+            <span className="text-xs px-2 py-1 rounded bg-[#10b981]/10 text-[#10b981] font-medium border border-[#10b981]/20">Active</span>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ─── Main Settings Component ──────────────────────────────────────────────────
 
 function SettingsContent() {
   const searchParams = useSearchParams()
@@ -42,7 +488,6 @@ function SettingsContent() {
       <Navbar />
       <main className="flex-1 overflow-auto">
         <div className="max-w-7xl mx-auto p-8">
-          {/* Header */}
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-white mb-2">Settings</h1>
             <p className="text-white/60">Manage your account preferences and settings.</p>
@@ -80,207 +525,60 @@ function SettingsContent() {
                   transition={{ duration: 0.2 }}
                   className="space-y-6"
                 >
-                  {/* --- PROFILE TAB --- */}
-                  {activeTab === 'profile' && (
-                    <>
-                      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
-                        <h2 className="text-lg font-semibold text-white/90 mb-6">Profile Information</h2>
-                        
-                        <div className="flex items-center gap-6 mb-8">
-                          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] flex items-center justify-center text-white text-3xl font-bold shadow-lg shadow-purple-500/20">
-                            M
-                          </div>
-                          <div>
-                            <Button variant="outline" className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08] mb-2">
-                              Change Avatar
-                            </Button>
-                            <p className="text-xs text-white/40">Only JPG, GIF or PNG. 1MB max.</p>
-                          </div>
-                        </div>
+                  {activeTab === 'profile' && <ProfileTab />}
 
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="text-sm font-medium text-white/60">First Name</label>
-                              <input
-                                type="text"
-                                defaultValue="Mahad"
-                                className="w-full px-4 py-2 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white/90 text-sm outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-sm font-medium text-white/60">Last Name</label>
-                              <input
-                                type="text"
-                                defaultValue="Developer"
-                                className="w-full px-4 py-2 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white/90 text-sm outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
-                              />
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium text-white/60">Email Address</label>
-                            <input
-                              type="email"
-                              defaultValue="mahad@example.com"
-                              className="w-full px-4 py-2 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white/90 text-sm outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
-                         <h2 className="text-lg font-semibold text-white/90 mb-6">API Keys</h2>
-                         <p className="text-sm text-white/40 mb-4">Manage your API keys for accessing the baas platform programmatically.</p>
-                         
-                         <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/[0.04] mb-4">
-                            <div className="flex items-center gap-3">
-                              <Key className="w-5 h-5 text-[#6c3bf5]" />
-                              <div>
-                                <p className="text-sm font-medium text-white/90">Production Key</p>
-                                <p className="text-xs text-white/40 mt-1">pk_live_*************************</p>
-                              </div>
-                            </div>
-                            <Button variant="outline" className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]" size="sm">
-                              Revoke
-                            </Button>
-                         </div>
-                         
-                         <Button variant="outline" className="w-full border-dashed border-white/[0.12] bg-transparent text-white/60 hover:text-white/90 hover:bg-white/[0.02]">
-                           Generate New API Key
-                         </Button>
-                      </div>
-                    </>
-                  )}
-
-                  {/* --- NOTIFICATIONS TAB --- */}
                   {activeTab === 'notifications' && (
-                    <>
-                      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
-                        <h2 className="text-lg font-semibold text-white/90 mb-6">Notification Preferences</h2>
-                        
-                        <div className="space-y-6">
-                          <div className="flex items-start justify-between">
-                            <div className="flex gap-4">
-                              <div className="p-2.5 rounded-lg bg-white/[0.04] h-fit">
-                                <Mail className="w-5 h-5 text-white/60" />
-                              </div>
-                              <div>
-                                <h3 className="text-sm font-medium text-white/90">Email Notifications</h3>
-                                <p className="text-xs text-white/40 mt-1 max-w-sm">Receive digest emails about your infrastructure usage, warnings, and system health.</p>
-                              </div>
+                    <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
+                      <h2 className="text-lg font-semibold text-white/90 mb-6">Notification Preferences</h2>
+                      <div className="space-y-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex gap-4">
+                            <div className="p-2.5 rounded-lg bg-white/[0.04] h-fit">
+                              <Mail className="w-5 h-5 text-white/60" />
                             </div>
-                            <Switch defaultChecked className="data-[state=checked]:bg-[#6c3bf5]" />
-                          </div>
-
-                          <div className="h-px w-full bg-white/[0.06]" />
-
-                          <div className="flex items-start justify-between">
-                            <div className="flex gap-4">
-                              <div className="p-2.5 rounded-lg bg-white/[0.04] h-fit">
-                                <Smartphone className="w-5 h-5 text-white/60" />
-                              </div>
-                              <div>
-                                <h3 className="text-sm font-medium text-white/90">Push Notifications</h3>
-                                <p className="text-xs text-white/40 mt-1 max-w-sm">Get real-time push events when critical deployments succeed or fail.</p>
-                              </div>
+                            <div>
+                              <h3 className="text-sm font-medium text-white/90">Email Notifications</h3>
+                              <p className="text-xs text-white/40 mt-1 max-w-sm">Receive digest emails about your infrastructure usage, warnings, and system health.</p>
                             </div>
-                            <Switch defaultChecked className="data-[state=checked]:bg-[#6c3bf5]" />
                           </div>
-
-                          <div className="h-px w-full bg-white/[0.06]" />
-
-                          <div className="flex items-start justify-between">
-                            <div className="flex gap-4">
-                              <div className="p-2.5 rounded-lg bg-white/[0.04] h-fit">
-                                <Bell className="w-5 h-5 text-white/60" />
-                              </div>
-                              <div>
-                                <h3 className="text-sm font-medium text-white/90">Marketing & Updates</h3>
-                                <p className="text-xs text-white/40 mt-1 max-w-sm">Receive emails about new CodeEvo features and platform updates.</p>
-                              </div>
+                          <Switch defaultChecked className="data-[state=checked]:bg-[#6c3bf5]" />
+                        </div>
+                        <div className="h-px w-full bg-white/[0.06]" />
+                        <div className="flex items-start justify-between">
+                          <div className="flex gap-4">
+                            <div className="p-2.5 rounded-lg bg-white/[0.04] h-fit">
+                              <Smartphone className="w-5 h-5 text-white/60" />
                             </div>
-                            <Switch className="data-[state=checked]:bg-[#6c3bf5]" />
+                            <div>
+                              <h3 className="text-sm font-medium text-white/90">Push Notifications</h3>
+                              <p className="text-xs text-white/40 mt-1 max-w-sm">Get real-time push events when critical deployments succeed or fail.</p>
+                            </div>
                           </div>
+                          <Switch defaultChecked className="data-[state=checked]:bg-[#6c3bf5]" />
+                        </div>
+                        <div className="h-px w-full bg-white/[0.06]" />
+                        <div className="flex items-start justify-between">
+                          <div className="flex gap-4">
+                            <div className="p-2.5 rounded-lg bg-white/[0.04] h-fit">
+                              <Bell className="w-5 h-5 text-white/60" />
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-medium text-white/90">Marketing & Updates</h3>
+                              <p className="text-xs text-white/40 mt-1 max-w-sm">Receive emails about new CodeEvo features and platform updates.</p>
+                            </div>
+                          </div>
+                          <Switch className="data-[state=checked]:bg-[#6c3bf5]" />
                         </div>
                       </div>
-                    </>
+                    </div>
                   )}
 
-                  {/* --- SECURITY TAB --- */}
-                  {activeTab === 'security' && (
-                    <>
-                      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
-                        <h2 className="text-lg font-semibold text-white/90 mb-6">Security Settings</h2>
-                        
-                        <div className="space-y-6">
-                          <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/[0.04]">
-                            <div className="flex items-center gap-4">
-                              <div className="p-2.5 rounded-lg bg-[#10b981]/10 h-fit">
-                                <Lock className="w-5 h-5 text-[#10b981]" />
-                              </div>
-                              <div>
-                                <h3 className="text-sm font-medium text-white/90">Password</h3>
-                                <p className="text-xs text-white/40 mt-1">Last changed 3 months ago</p>
-                              </div>
-                            </div>
-                            <Button variant="outline" className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]" size="sm">
-                              Update
-                            </Button>
-                          </div>
+                  {activeTab === 'security' && <SecurityTab />}
 
-                          <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/[0.04]">
-                            <div className="flex items-center gap-4">
-                              <div className="p-2.5 rounded-lg bg-[#f59e0b]/10 h-fit">
-                                <Shield className="w-5 h-5 text-[#f59e0b]" />
-                              </div>
-                              <div>
-                                <h3 className="text-sm font-medium text-white/90">Two-Factor Authentication</h3>
-                                <p className="text-xs text-white/40 mt-1">Add an extra layer of security to your account.</p>
-                              </div>
-                            </div>
-                            <Button className="bg-white/[0.08] text-white hover:bg-white/[0.12] border-0" size="sm">
-                              Enable 2FA
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
-                        <h2 className="text-lg font-semibold text-white/90 mb-4">Active Sessions</h2>
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex gap-3 items-center">
-                              <Clock className="w-4 h-4 text-white/40" />
-                              <div>
-                                <p className="text-sm font-medium text-white/90">Mac OS • Chrome</p>
-                                <p className="text-xs text-white/40">San Francisco, USA • Current Session</p>
-                              </div>
-                            </div>
-                            <span className="text-xs px-2 py-1 rounded bg-[#10b981]/10 text-[#10b981] font-medium border border-[#10b981]/20">Active</span>
-                          </div>
-                          <div className="h-px w-full bg-white/[0.06]" />
-                          <div className="flex items-center justify-between">
-                            <div className="flex gap-3 items-center">
-                              <Clock className="w-4 h-4 text-white/40" />
-                              <div>
-                                <p className="text-sm font-medium text-white/90">Windows 11 • Edge</p>
-                                <p className="text-xs text-white/40">New York, USA • 2 hours ago</p>
-                              </div>
-                            </div>
-                            <button className="text-xs text-red-400 hover:text-red-300 font-medium transition-colors">Revoke</button>
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* --- BILLING TAB --- */}
                   {activeTab === 'billing' && (
                     <>
                       <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-[#6c3bf5]/30 relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-30 bg-[#6c3bf5] opacity-5 blur-[80px] w-64 h-64 -translate-y-1/2 translate-x-1/3 rounded-full pointer-events-none" />
-                        
                         <div className="flex items-start justify-between relative z-10">
                           <div>
                             <div className="flex items-center gap-3 mb-2">
@@ -288,7 +586,6 @@ function SettingsContent() {
                               <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#6c3bf5]/20 text-[#6c3bf5] font-bold border border-[#6c3bf5]/30">Active</span>
                             </div>
                             <p className="text-sm text-white/60 mb-6">Perfect for scaling applications and microservices.</p>
-                            
                             <div className="space-y-2 mb-6">
                               {['Unlimited Agents', 'Up to 50 Microservices', '99.9% Uptime SLA', 'Priority Support'].map((feat, i) => (
                                 <div key={i} className="flex items-center gap-2">
@@ -298,26 +595,19 @@ function SettingsContent() {
                               ))}
                             </div>
                           </div>
-                          
                           <div className="text-right">
                             <span className="text-3xl font-bold text-white">$49</span>
                             <span className="text-white/40 text-sm">/mo</span>
                           </div>
                         </div>
-
                         <div className="flex gap-3 relative z-10">
-                          <Button className="bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white hover:shadow-lg hover:shadow-purple-500/20 border-0">
-                            Upgrade Plan
-                          </Button>
-                          <Button variant="outline" className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]">
-                            Cancel Subscription
-                          </Button>
+                          <Button className="bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white hover:shadow-lg hover:shadow-purple-500/20 border-0">Upgrade Plan</Button>
+                          <Button variant="outline" className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]">Cancel Subscription</Button>
                         </div>
                       </div>
 
                       <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
                         <h2 className="text-lg font-semibold text-white/90 mb-6">Payment Method</h2>
-                        
                         <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/[0.04] mb-4">
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-8 rounded bg-white/[0.06] flex items-center justify-center border border-white/[0.1]">
@@ -328,53 +618,34 @@ function SettingsContent() {
                               <p className="text-xs text-white/40 mt-1">Expires 12/24</p>
                             </div>
                           </div>
-                          <Button variant="outline" className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]" size="sm">
-                            Edit
-                          </Button>
+                          <Button variant="outline" className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]" size="sm">Edit</Button>
                         </div>
-                        
                         <Button variant="outline" className="w-full border-dashed border-white/[0.12] bg-transparent text-white/60 hover:text-white/90 hover:bg-white/[0.02]">
                           Add New Payment Method
                         </Button>
                       </div>
-                      
+
                       <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
                         <h2 className="text-lg font-semibold text-white/90 mb-4">Billing History</h2>
                         <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-white/90">Pro Plan - Monthly</p>
-                              <p className="text-xs text-white/40">May 1, 2026</p>
+                          {[{ date: 'May 1, 2026' }, { date: 'Apr 1, 2026' }].map((item, i) => (
+                            <div key={i}>
+                              {i > 0 && <div className="h-px w-full bg-white/[0.06] mb-4" />}
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="text-sm font-medium text-white/90">Pro Plan - Monthly</p>
+                                  <p className="text-xs text-white/40">{item.date}</p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <span className="text-sm text-white/90">$49.00</span>
+                                  <Button variant="outline" className="h-7 text-xs bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]">Receipt</Button>
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-4">
-                              <span className="text-sm text-white/90">$49.00</span>
-                              <Button variant="outline" className="h-7 text-xs bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]">Receipt</Button>
-                            </div>
-                          </div>
-                          <div className="h-px w-full bg-white/[0.06]" />
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-medium text-white/90">Pro Plan - Monthly</p>
-                              <p className="text-xs text-white/40">Apr 1, 2026</p>
-                            </div>
-                            <div className="flex items-center gap-4">
-                              <span className="text-sm text-white/90">$49.00</span>
-                              <Button variant="outline" className="h-7 text-xs bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]">Receipt</Button>
-                            </div>
-                          </div>
+                          ))}
                         </div>
                       </div>
                     </>
-                  )}
-
-                  {/* Save Changes button is global except for billing maybe? Let's keep it global for profile/notifications/security */}
-                  {activeTab !== 'billing' && (
-                    <div className="flex justify-end pt-4">
-                      <Button className="bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white hover:shadow-lg hover:shadow-purple-500/20 border-0">
-                        <Save className="w-4 h-4 mr-2" />
-                        Save Changes
-                      </Button>
-                    </div>
                   )}
                 </motion.div>
               </AnimatePresence>
