@@ -11,7 +11,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 @RequiredArgsConstructor
-public class UserRepositoryCustomImplementation implements UserRepositoryCustom{
+public class UserRepositoryImpl implements UserRepositoryCustom {
 
     private final MongoTemplate mongoTemplate;
 
