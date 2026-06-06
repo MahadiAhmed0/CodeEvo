@@ -1,4 +1,4 @@
-package com.codeevo.auth_user.Security;
+package com.codeevo.auth_user.security;
 
 
 import io.jsonwebtoken.Claims;

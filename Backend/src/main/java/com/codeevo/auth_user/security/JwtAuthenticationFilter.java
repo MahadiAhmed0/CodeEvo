@@ -1,4 +1,4 @@
-package com.codeevo.auth_user.Security;
+package com.codeevo.auth_user.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
