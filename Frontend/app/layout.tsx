@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Sometype_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { Toaster } from 'sonner'
 import './globals.css'
 
 const _sometypeMono = Sometype_Mono({
@@ -42,6 +43,17 @@ export default function RootLayout({
     <html lang="en" className="bg-[#0a0e1a] scroll-smooth">
       <body className={`${_sometypeMono.variable} font-sans antialiased bg-[#0a0e1a] text-white`}>
         {children}
+        <Toaster
+          theme="dark"
+          position="bottom-right"
+          toastOptions={{
+            style: {
+              background: '#0d1220',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: '#fff',
+            },
+          }}
+        />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

@@ -1,43 +1,81 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Github, ArrowRight, Loader2 } from 'lucide-react'
+import { authApi } from '@/lib/api'
+import { useAuthStore } from '@/lib/auth-store'
+import { toast } from 'sonner'
 
 export default function AuthPage() {
   const router = useRouter()
+  const { setAuth } = useAuthStore()
+
   const [isLogin, setIsLogin] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Form field refs
+  const firstNameRef = useRef<HTMLInputElement>(null)
+  const lastNameRef = useRef<HTMLInputElement>(null)
+  const emailRef = useRef<HTMLInputElement>(null)
+  const passwordRef = useRef<HTMLInputElement>(null)
+  const confirmPasswordRef = useRef<HTMLInputElement>(null)
+
+  const switchTab = (login: boolean) => {
+    setIsLogin(login)
+    setError('')
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    
-    if (!isLogin && password !== confirmPassword) {
-      setError('Passwords do not match')
-      return
-    }
 
-    setIsLoading(true)
-    // Simulate network request
-    setTimeout(() => {
-      setIsLoading(false)
-      router.push('/dashboard')
-    }, 1000)
+    const email = emailRef.current?.value.trim() ?? ''
+    const password = passwordRef.current?.value ?? ''
+
+    if (!isLogin) {
+      const firstName = firstNameRef.current?.value.trim() ?? ''
+      const lastName = lastNameRef.current?.value.trim() ?? ''
+      const confirmPassword = confirmPasswordRef.current?.value ?? ''
+
+      if (!firstName || !lastName) {
+        setError('Please enter your first and last name.')
+        return
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match.')
+        return
+      }
+
+      setIsLoading(true)
+      try {
+        const response = await authApi.register({ firstName, lastName, email, password })
+        setAuth(response)
+        router.replace('/dashboard')
+      } catch (err: any) {
+        setError(err.message ?? 'Registration failed. Please try again.')
+      } finally {
+        setIsLoading(false)
+      }
+    } else {
+      setIsLoading(true)
+      try {
+        const response = await authApi.login({ email, password })
+        setAuth(response)
+        router.replace('/dashboard')
+      } catch (err: any) {
+        setError(err.message ?? 'Login failed. Please check your credentials.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
   }
 
   const handleOAuth = () => {
-    setIsLoading(true)
-    // Simulate oauth redirect
-    setTimeout(() => {
-      setIsLoading(false)
-      router.push('/dashboard')
-    }, 1000)
+    toast.info('OAuth is coming soon! Please sign in with email for now.')
   }
 
   return (
@@ -60,8 +98,8 @@ export default function AuthPage() {
               {isLogin ? 'Welcome back' : 'Create an account'}
             </h2>
             <p className="text-white/60 text-sm">
-              {isLogin 
-                ? 'Enter your credentials to access your workspace' 
+              {isLogin
+                ? 'Enter your credentials to access your workspace'
                 : 'Join CodeEvo to start building architectures visually'}
             </p>
           </div>
@@ -69,7 +107,7 @@ export default function AuthPage() {
           {/* Toggle Tabs */}
           <div className="bg-white/[0.04] border border-white/[0.08] p-1 rounded-xl flex mb-8">
             <button
-              onClick={() => { setIsLogin(true); setError(''); }}
+              onClick={() => switchTab(true)}
               className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                 isLogin ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80'
               }`}
@@ -77,7 +115,7 @@ export default function AuthPage() {
               Sign In
             </button>
             <button
-              onClick={() => { setIsLogin(false); setError(''); }}
+              onClick={() => switchTab(false)}
               className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
                 !isLogin ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/50 hover:text-white/80'
               }`}
@@ -88,7 +126,8 @@ export default function AuthPage() {
 
           {/* OAuth Buttons */}
           <div className="space-y-3 mb-8">
-            <button 
+            <button
+              type="button"
               onClick={handleOAuth}
               disabled={isLoading}
               className="w-full flex items-center justify-center gap-3 bg-white text-black px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-white/90 transition-colors disabled:opacity-50"
@@ -101,7 +140,8 @@ export default function AuthPage() {
               </svg>
               Continue with Google
             </button>
-            <button 
+            <button
+              type="button"
               onClick={handleOAuth}
               disabled={isLoading}
               className="w-full flex items-center justify-center gap-3 bg-[#24292e] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[#2c3137] transition-colors border border-white/10 disabled:opacity-50"
@@ -119,30 +159,50 @@ export default function AuthPage() {
 
           {/* Email Form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isLogin ? 'max-h-0 opacity-0' : 'max-h-[100px] opacity-100'}`}>
-              <div className="space-y-1.5">
-                <label htmlFor="name" className="text-sm font-medium text-white/80">Full Name</label>
-                <input 
-                  id="name" 
-                  type="text" 
-                  required={!isLogin}
-                  placeholder="John Doe"
-                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/50 focus:bg-white/[0.05] transition-all"
-                />
+
+            {/* First Name + Last Name (sign-up only) */}
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isLogin ? 'max-h-0 opacity-0' : 'max-h-[140px] opacity-100'}`}>
+              <div className="grid grid-cols-2 gap-3 pb-1">
+                <div className="space-y-1.5">
+                  <label htmlFor="firstName" className="text-sm font-medium text-white/80">First Name</label>
+                  <input
+                    id="firstName"
+                    ref={firstNameRef}
+                    type="text"
+                    required={!isLogin}
+                    placeholder="John"
+                    autoComplete="given-name"
+                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/50 focus:bg-white/[0.05] transition-all"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="lastName" className="text-sm font-medium text-white/80">Last Name</label>
+                  <input
+                    id="lastName"
+                    ref={lastNameRef}
+                    type="text"
+                    required={!isLogin}
+                    placeholder="Doe"
+                    autoComplete="family-name"
+                    className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/50 focus:bg-white/[0.05] transition-all"
+                  />
+                </div>
               </div>
             </div>
-            
+
             <div className="space-y-1.5">
               <label htmlFor="email" className="text-sm font-medium text-white/80">Email address</label>
-              <input 
-                id="email" 
-                type="email" 
+              <input
+                id="email"
+                ref={emailRef}
+                type="email"
                 required
                 placeholder="john@example.com"
+                autoComplete="email"
                 className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/50 focus:bg-white/[0.05] transition-all"
               />
             </div>
-            
+
             <div className="space-y-1.5">
               <div className="flex justify-between items-center">
                 <label htmlFor="password" className="text-sm font-medium text-white/80">Password</label>
@@ -152,38 +212,42 @@ export default function AuthPage() {
                   </Link>
                 )}
               </div>
-              <input 
-                id="password" 
-                type="password" 
+              <input
+                id="password"
+                ref={passwordRef}
+                type="password"
                 required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
                 className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/50 focus:bg-white/[0.05] transition-all"
               />
             </div>
 
+            {/* Confirm Password (sign-up only) */}
             <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isLogin ? 'max-h-0 opacity-0' : 'max-h-[100px] opacity-100'}`}>
               <div className="space-y-1.5">
                 <label htmlFor="confirmPassword" className="text-sm font-medium text-white/80">Confirm Password</label>
-                <input 
-                  id="confirmPassword" 
-                  type="password" 
+                <input
+                  id="confirmPassword"
+                  ref={confirmPasswordRef}
+                  type="password"
                   required={!isLogin}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
+                  autoComplete="new-password"
                   className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-sm outline-none focus:border-purple-500/50 focus:bg-white/[0.05] transition-all"
                 />
               </div>
             </div>
 
+            {/* Backend / validation error */}
             {error && (
-              <p className="text-xs text-red-400 mt-1 font-medium bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">{error}</p>
+              <p className="text-xs text-red-400 mt-1 font-medium bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">
+                {error}
+              </p>
             )}
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               disabled={isLoading}
               className="w-full flex items-center justify-center bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white px-4 py-3 rounded-xl font-semibold text-sm hover:shadow-[0_0_20px_rgba(108,59,245,0.3)] transition-all duration-300 mt-6 disabled:opacity-70"
             >
@@ -205,13 +269,10 @@ export default function AuthPage() {
 
       {/* Right side: Visual/Hero */}
       <div className="hidden md:flex flex-1 relative bg-[#06080d] border-l border-white/[0.06] items-center justify-center overflow-hidden">
-        {/* Background Gradients */}
         <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-[#6c3bf5]/20 blur-[150px] rounded-full pointer-events-none" />
         <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-[#c74cf0]/15 blur-[120px] rounded-full pointer-events-none" />
-        
-        {/* Abstract Grid/Pattern */}
         <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
-        
+
         <div className="relative z-10 max-w-md text-center">
           <div className="w-20 h-20 mx-auto bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] rounded-2xl flex items-center justify-center shadow-[0_0_40px_rgba(108,59,245,0.4)] mb-8 transform rotate-3 hover:rotate-6 transition-transform duration-500">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-10 h-10 text-white">
