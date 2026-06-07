@@ -430,6 +430,22 @@ function ProfileTab() {
           </div>
         </div>
 
+        <div className="flex gap-6 mb-8 bg-white/[0.02] border border-white/[0.04] rounded-lg p-4">
+          <div>
+            <p className="text-xs text-white/40 mb-1">Member Since</p>
+            <p className="text-sm font-medium text-white/90">
+              {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A'}
+            </p>
+          </div>
+          <div className="w-px bg-white/[0.06]" />
+          <div>
+            <p className="text-xs text-white/40 mb-1">Last Sign In</p>
+            <p className="text-sm font-medium text-white/90">
+              {user?.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'N/A'}
+            </p>
+          </div>
+        </div>
+
         <form id="profile-form" onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">

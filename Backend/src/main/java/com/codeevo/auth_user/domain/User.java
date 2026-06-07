@@ -32,6 +32,9 @@ public class User implements UserDetails {
     private String provider; // e.g. "local", "google", "github"
     private String providerId; // External ID
 
+    private java.time.Instant createdAt;
+    private java.time.Instant lastLoginAt;
+
     @Builder.Default
     private List<RefreshToken> refreshTokens = new java.util.ArrayList<>();
 

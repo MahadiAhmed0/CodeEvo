@@ -15,4 +15,6 @@ public class UserDto {
     private String lastName;
     private String email;
     private String avatar;
+    private java.time.Instant createdAt;
+    private java.time.Instant lastLoginAt;
 }

@@ -112,6 +112,8 @@ public class UserService {
                 .lastName(user.getLastName())
                 .email(user.getEmail())
                 .avatar(user.getAvatar())
+                .createdAt(user.getCreatedAt())
+                .lastLoginAt(user.getLastLoginAt())
                 .build();
     }
 }
