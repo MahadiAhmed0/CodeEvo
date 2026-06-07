@@ -226,7 +226,19 @@ export const userApi = {
     return res.json()
   },
 
+  removeAvatar: async (): Promise<UserDto> => {
+    const res = await fetchWithAuth('/api/users/avatar', {
+      method: 'DELETE',
+    })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
   /** Returns the full URL for a stored avatar filename */
-  avatarUrl: (filename: string): string =>
-    `/api/users/avatar/${encodeURIComponent(filename)}`,
+  avatarUrl: (filename: string): string => {
+    if (filename.startsWith('http://') || filename.startsWith('https://')) {
+      return filename
+    }
+    return `/api/users/avatar/${encodeURIComponent(filename)}`
+  },
 }

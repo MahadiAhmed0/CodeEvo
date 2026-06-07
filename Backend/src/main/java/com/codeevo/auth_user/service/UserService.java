@@ -87,15 +87,22 @@ public class UserService {
 
             Files.copy(file.getInputStream(), filePath);
 
-            // Set public URL path
-            String avatarUrl = "http://localhost:8080/api/users/avatar/" + newFilename;
-            user.setAvatar(avatarUrl);
+            // Set the avatar to just the filename so the frontend can build the URL properly
+            user.setAvatar(newFilename);
             user = userRepository.save(user);
 
             return mapToDto(user);
         } catch (IOException e) {
             throw new RuntimeException("Failed to store avatar file", e);
         }
+    }
+
+    public UserDto removeAvatar(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        user.setAvatar(null);
+        user = userRepository.save(user);
+        return mapToDto(user);
     }
 
     private UserDto mapToDto(User user) {

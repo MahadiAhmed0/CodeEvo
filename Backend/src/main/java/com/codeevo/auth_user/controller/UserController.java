@@ -55,6 +55,13 @@ public class UserController {
         return ResponseEntity.ok(updatedUser);
     }
 
+    @DeleteMapping("/avatar")
+    public ResponseEntity<UserDto> removeAvatar() {
+        String userId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        UserDto updatedUser = userService.removeAvatar(userId);
+        return ResponseEntity.ok(updatedUser);
+    }
+
     @GetMapping("/avatar/{filename}")
     public ResponseEntity<Resource> getAvatar(@PathVariable String filename) {
         try {
