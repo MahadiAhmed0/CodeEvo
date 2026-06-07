@@ -47,6 +47,8 @@ public class AuthService {
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .provider("local")
+                .createdAt(Instant.now())
+                .lastLoginAt(Instant.now())
                 .refreshTokens(new ArrayList<>())
                 .build();
 
@@ -65,6 +67,9 @@ public class AuthService {
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new BadCredentialsException("Invalid credentials");
         }
+
+        user.setLastLoginAt(Instant.now());
+        user = userRepository.save(user);
 
         return processUserAndTokens(user);
     }
@@ -89,6 +94,8 @@ public class AuthService {
                 .lastName(user.getLastName())
                 .email(user.getEmail())
                 .avatar(user.getAvatar())
+                .createdAt(user.getCreatedAt())
+                .lastLoginAt(user.getLastLoginAt())
                 .build();
 
         return AuthResponse.builder()
@@ -139,6 +146,8 @@ public class AuthService {
                 .lastName(user.getLastName())
                 .email(user.getEmail())
                 .avatar(user.getAvatar())
+                .createdAt(user.getCreatedAt())
+                .lastLoginAt(user.getLastLoginAt())
                 .build();
 
         return AuthResponse.builder()

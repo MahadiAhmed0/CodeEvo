@@ -1,7 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState, Suspense } from 'react'
+import { useEffect, useRef, useState, Suspense, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Cropper from 'react-easy-crop'
+import getCroppedImg from '@/lib/cropImage'
 import { Navbar } from '@/components/navbar'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -185,6 +187,16 @@ function ProfileTab() {
   const [saveError, setSaveError] = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
 
+  const [cropModalOpen, setCropModalOpen] = useState(false)
+  const [imageSrc, setImageSrc] = useState<string | null>(null)
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
+
+  const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels)
+  }, [])
+
   // Sync if user changes (e.g. after rehydration)
   useEffect(() => {
     if (user) {
@@ -196,7 +208,7 @@ function ProfileTab() {
 
   const avatarUrl = user?.avatar ? userApi.avatarUrl(user.avatar) : null
   const initials = user
-    ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase()
+    ? user.firstName.charAt(0).toUpperCase()
     : '?'
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -213,17 +225,45 @@ function ProfileTab() {
       return
     }
 
+    const reader = new FileReader()
+    reader.addEventListener('load', () => {
+      setImageSrc(reader.result?.toString() || null)
+      setCropModalOpen(true)
+    })
+    reader.readAsDataURL(file)
+    if (avatarInputRef.current) avatarInputRef.current.value = ''
+  }
+
+  const handleCropSave = async () => {
+    if (!imageSrc || !croppedAreaPixels) return
+
     setAvatarLoading(true)
+    setCropModalOpen(false)
     try {
-      const updatedUser = await userApi.uploadAvatar(file)
+      const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels, 0)
+      if (!croppedImage) throw new Error('Failed to crop image')
+      
+      const updatedUser = await userApi.uploadAvatar(croppedImage)
       updateUser(updatedUser)
       toast.success('Avatar updated!')
     } catch (err: any) {
       toast.error(err.message ?? 'Failed to upload avatar.')
     } finally {
       setAvatarLoading(false)
-      // Reset input so the same file can be re-selected
-      if (avatarInputRef.current) avatarInputRef.current.value = ''
+      setImageSrc(null)
+    }
+  }
+
+  const handleRemoveAvatar = async () => {
+    setAvatarLoading(true)
+    try {
+      const updatedUser = await userApi.removeAvatar()
+      updateUser(updatedUser)
+      toast.success('Avatar removed!')
+    } catch (err: any) {
+      toast.error(err.message ?? 'Failed to remove avatar.')
+    } finally {
+      setAvatarLoading(false)
     }
   }
 
@@ -266,6 +306,74 @@ function ProfileTab() {
 
   return (
     <>
+      <AnimatePresence>
+        {cropModalOpen && imageSrc && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md bg-[#0d1220] border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/60 overflow-hidden flex flex-col"
+            >
+              <div className="flex items-center justify-between p-4 border-b border-white/[0.08]">
+                <h3 className="text-lg font-semibold text-white">Crop Image</h3>
+                <button
+                  onClick={() => setCropModalOpen(false)}
+                  className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/[0.06] transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="relative w-full h-[300px] bg-black">
+                <Cropper
+                  image={imageSrc}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  cropShape="round"
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={onCropComplete}
+                />
+              </div>
+              <div className="p-4 space-y-4">
+                <div className="flex items-center gap-4">
+                  <span className="text-xs text-white/60">Zoom</span>
+                  <input
+                    type="range"
+                    value={zoom}
+                    min={1}
+                    max={3}
+                    step={0.1}
+                    aria-labelledby="Zoom"
+                    onChange={(e) => {
+                      setZoom(Number(e.target.value))
+                    }}
+                    className="flex-1 accent-[#6c3bf5]"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCropModalOpen(false)}
+                    className="flex-1 bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleCropSave}
+                    disabled={avatarLoading}
+                    className="flex-1 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white border-0"
+                  >
+                    {avatarLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Apply & Save'}
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
         <h2 className="text-lg font-semibold text-white/90 mb-6">Profile Information</h2>
 
@@ -294,16 +402,47 @@ function ProfileTab() {
               className="hidden"
               onChange={handleAvatarChange}
             />
-            <Button
-              variant="outline"
-              onClick={() => avatarInputRef.current?.click()}
-              disabled={avatarLoading}
-              className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08] mb-2 gap-2"
-            >
-              <Upload className="w-4 h-4" />
-              {avatarLoading ? 'Uploading…' : 'Change Avatar'}
-            </Button>
+            <div className="flex items-center gap-2 mb-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={avatarLoading}
+                className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08] gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                {avatarLoading ? 'Uploading…' : 'Change Avatar'}
+              </Button>
+              {avatarUrl && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleRemoveAvatar}
+                  disabled={avatarLoading}
+                  className="bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20 gap-2"
+                >
+                  <X className="w-4 h-4" />
+                  Remove
+                </Button>
+              )}
+            </div>
             <p className="text-xs text-white/40">Only JPG, GIF or PNG. 1 MB max.</p>
+          </div>
+        </div>
+
+        <div className="flex gap-6 mb-8 bg-white/[0.02] border border-white/[0.04] rounded-lg p-4">
+          <div>
+            <p className="text-xs text-white/40 mb-1">Member Since</p>
+            <p className="text-sm font-medium text-white/90">
+              {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A'}
+            </p>
+          </div>
+          <div className="w-px bg-white/[0.06]" />
+          <div>
+            <p className="text-xs text-white/40 mb-1">Last Sign In</p>
+            <p className="text-sm font-medium text-white/90">
+              {user?.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'N/A'}
+            </p>
           </div>
         </div>
 
@@ -347,47 +486,25 @@ function ProfileTab() {
               {saveError}
             </p>
           )}
-        </form>
-      </div>
 
-      {/* API Keys section (UI only) */}
-      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
-        <h2 className="text-lg font-semibold text-white/90 mb-6">API Keys</h2>
-        <p className="text-sm text-white/40 mb-4">Manage your API keys for accessing the platform programmatically.</p>
-        <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/[0.04] mb-4">
-          <div className="flex items-center gap-3">
-            <Key className="w-5 h-5 text-[#6c3bf5]" />
-            <div>
-              <p className="text-sm font-medium text-white/90">Production Key</p>
-              <p className="text-xs text-white/40 mt-1">pk_live_*************************</p>
-            </div>
+          {/* Save Changes */}
+          <div className="flex justify-end pt-4">
+            <Button
+              type="submit"
+              disabled={saving}
+              className="bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white hover:shadow-lg hover:shadow-purple-500/20 border-0 gap-2"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : saveSuccess ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <Save className="w-4 h-4" />
+              )}
+              {saving ? 'Saving…' : saveSuccess ? 'Saved!' : 'Save Changes'}
+            </Button>
           </div>
-          <Button variant="outline" className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08]" size="sm">
-            Revoke
-          </Button>
-        </div>
-        <Button variant="outline" className="w-full border-dashed border-white/[0.12] bg-transparent text-white/60 hover:text-white/90 hover:bg-white/[0.02]">
-          Generate New API Key
-        </Button>
-      </div>
-
-      {/* Save Changes */}
-      <div className="flex justify-end pt-4">
-        <Button
-          form="profile-form"
-          type="submit"
-          disabled={saving}
-          className="bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white hover:shadow-lg hover:shadow-purple-500/20 border-0 gap-2"
-        >
-          {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : saveSuccess ? (
-            <CheckCircle2 className="w-4 h-4" />
-          ) : (
-            <Save className="w-4 h-4" />
-          )}
-          {saving ? 'Saving…' : saveSuccess ? 'Saved!' : 'Save Changes'}
-        </Button>
+        </form>
       </div>
     </>
   )
@@ -442,22 +559,6 @@ function SecurityTab() {
             <Button className="bg-white/[0.08] text-white hover:bg-white/[0.12] border-0" size="sm">
               Enable 2FA
             </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
-        <h2 className="text-lg font-semibold text-white/90 mb-4">Active Sessions</h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-3 items-center">
-              <Clock className="w-4 h-4 text-white/40" />
-              <div>
-                <p className="text-sm font-medium text-white/90">Current Browser</p>
-                <p className="text-xs text-white/40">Current Session</p>
-              </div>
-            </div>
-            <span className="text-xs px-2 py-1 rounded bg-[#10b981]/10 text-[#10b981] font-medium border border-[#10b981]/20">Active</span>
           </div>
         </div>
       </div>

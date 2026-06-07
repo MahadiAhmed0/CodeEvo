@@ -31,7 +31,7 @@ export function Navbar() {
 
   // Derive display values from store
   const initials = user
-    ? `${user.firstName.charAt(0)}${user.lastName.charAt(0)}`.toUpperCase()
+    ? user.firstName.charAt(0).toUpperCase()
     : '?'
   const fullName = user ? `${user.firstName} ${user.lastName}` : 'Guest'
   const email = user?.email ?? ''

@@ -7,6 +7,8 @@ export interface UserDto {
   lastName: string
   email: string
   avatar?: string | null
+  createdAt?: string
+  lastLoginAt?: string
 }
 
 export interface AuthResponse {
