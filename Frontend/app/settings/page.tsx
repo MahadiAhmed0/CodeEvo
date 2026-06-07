@@ -562,22 +562,6 @@ function SecurityTab() {
           </div>
         </div>
       </div>
-
-      <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
-        <h2 className="text-lg font-semibold text-white/90 mb-4">Active Sessions</h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-3 items-center">
-              <Clock className="w-4 h-4 text-white/40" />
-              <div>
-                <p className="text-sm font-medium text-white/90">Current Browser</p>
-                <p className="text-xs text-white/40">Current Session</p>
-              </div>
-            </div>
-            <span className="text-xs px-2 py-1 rounded bg-[#10b981]/10 text-[#10b981] font-medium border border-[#10b981]/20">Active</span>
-          </div>
-        </div>
-      </div>
     </>
   )
 }
