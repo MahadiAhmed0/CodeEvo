@@ -16,6 +16,7 @@ import java.time.Instant;
 @AllArgsConstructor
 @Document(collection = "project_history")
 public class ProjectHistory {
+
     @Id
     private String id;
 
