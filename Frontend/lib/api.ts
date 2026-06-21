@@ -242,3 +242,234 @@ export const userApi = {
     return `/api/users/avatar/${encodeURIComponent(filename)}`
   },
 }
+
+// ─── Project / Diagram API ────────────────────────────────────────────────────
+
+export interface DiagramData {
+  nodes: any[]
+  edges: any[]
+  timestamp: string
+}
+
+export const projectApi = {
+  /**
+   * Create a new project.
+   */
+  createProject: async (name: string, description: string): Promise<{ id: string }> => {
+    const res = await fetchWithAuth('/api/projects', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Idempotency-Key': crypto.randomUUID()
+      },
+      body: JSON.stringify({ name, description, status: 'active' })
+    })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  /**
+   * Fetch the saved diagram for a project.
+   */
+  getDiagram: async (projectId: string): Promise<DiagramData | null> => {
+    const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(projectId)}`)
+    if (res.status === 404) return null
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    const projectDetail = await res.json()
+    
+    if (projectDetail.diagramJson) {
+      try {
+        return JSON.parse(projectDetail.diagramJson) as DiagramData
+      } catch (e) {
+        console.error('Failed to parse diagramJson', e)
+        return null
+      }
+    }
+    return null
+  },
+
+  /**
+   * Upsert the diagram for a project.
+   */
+  saveDiagram: async (projectId: string, diagram: DiagramData): Promise<void> => {
+    const payload = {
+      diagramJson: JSON.stringify(diagram),
+      changeMessage: 'Auto-saved diagram'
+    }
+    const res = await fetchWithAuth(
+      `/api/projects/${encodeURIComponent(projectId)}/diagram`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    )
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+  },
+
+  /**
+   * List all projects for the current user.
+   */
+  listProjects: async (): Promise<any> => {
+    const res = await fetchWithAuth('/api/projects?size=50')
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  /**
+   * Get recent projects.
+   */
+  getRecentProjects: async (): Promise<any[]> => {
+    const res = await fetchWithAuth('/api/projects/recent')
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  /**
+   * Get dashboard stats.
+   */
+  getDashboardStats: async (): Promise<any> => {
+    const res = await fetchWithAuth('/api/projects/stats')
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+  /**
+   * Delete a project (soft by default, pass hard=true for permanent).
+   */
+  deleteProject: async (projectId: string, hard = false): Promise<void> => {
+    const res = await fetchWithAuth(
+      `/api/projects/${encodeURIComponent(projectId)}?hard=${hard}`,
+      { method: 'DELETE' }
+    )
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+  },
+}
+
+// ─── Project History API ──────────────────────────────────────────────────────
+
+export interface HistoryEntry {
+  id: string
+  message: string
+  commitHash: string
+  nodeDelta: number
+  edgeDelta: number
+  createdAt: string
+  createdBy: string
+  diagramJson?: string
+}
+
+export interface HistoryPageResponse {
+  content: HistoryEntry[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
+export const projectHistoryApi = {
+  /**
+   * Fetch paginated history for a project (newest first).
+   */
+  getHistory: async (projectId: string, page = 0, size = 50): Promise<HistoryPageResponse> => {
+    const res = await fetchWithAuth(
+      `/api/projects/${encodeURIComponent(projectId)}/history?page=${page}&size=${size}`
+    )
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  /**
+   * Get a single history entry including its diagramJson snapshot.
+   */
+  getHistoryEntry: async (projectId: string, historyId: string): Promise<HistoryEntry> => {
+    const res = await fetchWithAuth(
+      `/api/projects/${encodeURIComponent(projectId)}/history/${encodeURIComponent(historyId)}`
+    )
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  /**
+   * Restore the diagram to a specific history snapshot.
+   */
+  restoreSnapshot: async (projectId: string, historyId: string): Promise<void> => {
+    const res = await fetchWithAuth(
+      `/api/projects/${encodeURIComponent(projectId)}/history/${encodeURIComponent(historyId)}/restore`,
+      { method: 'POST' }
+    )
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+  },
+}
+
+// ─── Project Code API ─────────────────────────────────────────────────────
+
+export interface CodeFileDto {
+  id: string
+  projectId: string
+  filePath: string
+  content: string
+  language: string
+  sizeBytes: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CodeTreeNode {
+  type: 'file' | 'folder'
+  name: string
+  filePath?: string
+  content?: string
+  language?: string
+  children?: Record<string, CodeTreeNode>
+}
+
+export interface CodeTreeResponse {
+  totalFiles: number
+  totalSizeBytes: number
+  tree: Record<string, CodeTreeNode>
+}
+
+export const projectCodeApi = {
+  /**
+   * Get the hierarchical file tree for a project's code.
+   */
+  getFileTree: async (projectId: string): Promise<CodeTreeResponse> => {
+    const res = await fetchWithAuth(
+      `/api/projects/${encodeURIComponent(projectId)}/code/tree`
+    )
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  /**
+   * Get all code files as a flat list.
+   */
+  getCodeFiles: async (projectId: string): Promise<CodeFileDto[]> => {
+    const res = await fetchWithAuth(
+      `/api/projects/${encodeURIComponent(projectId)}/code`
+    )
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  /**
+   * Download all code files as a ZIP archive.
+   * Triggers a browser download.
+   */
+  downloadZip: async (projectId: string, projectName?: string): Promise<void> => {
+    const res = await fetchWithAuth(
+      `/api/projects/${encodeURIComponent(projectId)}/code/download`
+    )
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+
+    const blob = await res.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${projectName || 'project'}-code.zip`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  },
+}
