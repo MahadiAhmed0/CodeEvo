@@ -63,6 +63,7 @@ public class ProjectHistoryService {
                 .nodeDelta(history.getNodeDelta())
                 .edgeDelta(history.getEdgeDelta())
                 .createdAt(history.getCreatedAt())
+                .createdBy(history.getCreatedBy())
                 .build();
     }
 }
