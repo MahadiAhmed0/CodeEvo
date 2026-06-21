@@ -1,4 +1,4 @@
-package com.codeevo.auth_user;
+package com.codeevo.project;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -7,14 +7,14 @@ import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication(scanBasePackages = "com.codeevo")
-public class AuthApplication {
+public class ProjectApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(AuthApplication.class, args);
+        SpringApplication.run(ProjectApplication.class, args);
     }
 
     @Bean
-    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> tomcatCustomizer() {
+    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> projectTomcatCustomizer() {
         return factory -> factory.addConnectorCustomizers(connector -> {
             connector.setProperty("maxHttpHeaderSize", "65536");
         });

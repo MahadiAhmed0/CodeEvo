@@ -13,11 +13,15 @@ public interface ProjectRepository extends MongoRepository<Project, String> {
     Page<Project> findByOwnerIdAndStatus(String ownerId, String status, Pageable pageable);
     Page<Project> findByOwnerIdAndStatusNot(String ownerId, String status, Pageable pageable);
 
-    Page<Project> findBtOwnerIdAndStatusNotAndNameContainingIgnoreCase(String ownerId, String status, String name, Pageable pageable);
+    Page<Project> findByOwnerIdAndNameContainingIgnoreCase(String ownerId, String name, Pageable pageable);
+    Page<Project> findByOwnerIdAndStatusNotAndNameContainingIgnoreCase(String ownerId, String status, String name, Pageable pageable);
     Page<Project> findByOwnerIdAndStatusAndNameContainingIgnoreCase(String ownerId, String status, String name, Pageable pageable);
+
+    Page<Project> findByOwnerId(String ownerId, Pageable pageable);
 
     Optional<Project> findByIdempotencyKey(String idempotencyKey);
 
-    long countByOwnerIdAndStatusNot(String ownerId, String status);
+    long countByOwnerId(String ownerId);
     long countByOwnerIdAndStatus(String ownerId, String status);
+    long countByOwnerIdAndStatusNot(String ownerId, String status);
 }

@@ -16,6 +16,7 @@ import java.time.Instant;
 @AllArgsConstructor
 @Document(collection = "project_audit_log")
 public class ProjectAuditLog {
+
     @Id
     private String id;
 
