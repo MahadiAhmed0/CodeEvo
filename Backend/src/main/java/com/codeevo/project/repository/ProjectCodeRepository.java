@@ -9,8 +9,16 @@ import java.util.Optional;
 
 @Repository
 public interface ProjectCodeRepository extends MongoRepository<ProjectCode, String> {
+
+    /** Retrieve every code file belonging to a project, ordered by path for deterministic tree building. */
     List<ProjectCode> findByProjectIdOrderByFilePathAsc(String projectId);
-    Optional<ProjectCode> findByProjectIdAndFilePath(String projectId, String filepath);
+
+    /** Look up a single file by its unique (projectId + filePath) pair. */
+    Optional<ProjectCode> findByProjectIdAndFilePath(String projectId, String filePath);
+
+    /** Delete all code files when a project is hard-deleted. */
     void deleteByProjectId(String projectId);
+
+    /** Count total files in a project (used for quota checks). */
     long countByProjectId(String projectId);
 }
