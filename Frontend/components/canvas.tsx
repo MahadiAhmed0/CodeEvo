@@ -1,6 +1,9 @@
 'use client'
 
 import { useCallback, useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { projectApi, projectCodeApi } from '@/lib/api'
+import { toast } from 'sonner'
 import ReactFlow, {
   Node,
   Edge,
@@ -39,191 +42,6 @@ const edgeTypes = {
   custom: CustomEdge,
 }
 
-const initialNodes: Node[] = [
-  {
-    id: '0',
-    data: {
-      type: 'api',
-      name: 'MainGateway',
-      port: 8000,
-      gatewayConfig: {
-        platform: 'express-proxy',
-        routes: [
-          { id: 'r1', pathPrefix: '/api/users', targetService: 'UserService', targetPort: 8080, methods: ['ALL'], stripPrefix: true },
-          { id: 'r2', pathPrefix: '/api/orders', targetService: 'OrderService', targetPort: 8081, methods: ['ALL'], stripPrefix: true },
-          { id: 'r3', pathPrefix: '/api/payments', targetService: 'PaymentService', targetPort: 9000, methods: ['POST'], stripPrefix: false }
-        ],
-        auth: { enabled: true, type: 'jwt' },
-        rateLimit: { enabled: true, requestsPerMinute: 100 },
-        cors: { enabled: true, allowedOrigins: ['https://codeevo.com'] },
-      },
-    },
-    position: { x: 450, y: 50 },
-    type: 'diagram',
-  },
-  {
-    id: '1',
-    data: {
-      type: 'service',
-      name: 'UserService',
-      language: 'spring-boot',
-      port: 8080,
-      methods: [
-        { name: 'createUser', description: 'Register a new user account', type: 'mutation' },
-        { name: 'getUserById', description: 'Fetch user details by ID', type: 'query' },
-        { name: 'updateProfile', description: 'Update user profile data', type: 'mutation' }
-      ],
-      externalAPIs: [],
-    },
-    position: { x: 100, y: 250 },
-    type: 'diagram',
-  },
-  {
-    id: '2',
-    data: {
-      type: 'service',
-      name: 'OrderService',
-      language: 'spring-boot',
-      port: 8081,
-      methods: [
-        { name: 'createOrder', description: 'Place a new order', type: 'mutation' },
-        { name: 'getOrderDetails', description: 'Fetch order by ID', type: 'query' },
-        { name: 'onPaymentProcessed', description: 'Handle payment confirmation event', type: 'handler' }
-      ],
-      externalAPIs: [],
-    },
-    position: { x: 450, y: 250 },
-    type: 'diagram',
-  },
-  {
-    id: '3',
-    data: {
-      type: 'service',
-      name: 'PaymentService',
-      language: 'go',
-      port: 9000,
-      methods: [
-        { name: 'processPayment', description: 'Charge customer via payment provider', type: 'mutation' },
-        { name: 'verifyPayment', description: 'Verify payment status with provider', type: 'query' },
-        { name: 'refundPayment', description: 'Issue a refund to customer', type: 'mutation' }
-      ],
-      externalAPIs: [
-        { name: 'Stripe', baseUrl: 'https://api.stripe.com/v1', description: 'Payment processing' }
-      ],
-    },
-    position: { x: 800, y: 250 },
-    type: 'diagram',
-  },
-  {
-    id: '4',
-    data: {
-      type: 'database',
-      name: 'UserDB',
-      engine: 'postgres',
-      tables: [
-        { name: 'users', columns: [{ name: 'id', type: 'uuid' }, { name: 'email', type: 'varchar' }] },
-        { name: 'profiles', columns: [{ name: 'id', type: 'uuid' }, { name: 'user_id', type: 'uuid' }] },
-        { name: 'preferences', columns: [{ name: 'id', type: 'uuid' }, { name: 'theme', type: 'varchar' }] }
-      ] as any[],
-    },
-    position: { x: 100, y: 500 },
-    type: 'diagram',
-  },
-  {
-    id: '5',
-    data: {
-      type: 'database',
-      name: 'OrderDB',
-      engine: 'mongodb',
-      collections: [
-        { name: 'orders', columns: [{ name: '_id', type: 'ObjectId' }, { name: 'status', type: 'String' }] },
-        { name: 'order_items', columns: [{ name: '_id', type: 'ObjectId' }, { name: 'product', type: 'String' }] },
-        { name: 'shipments', columns: [{ name: '_id', type: 'ObjectId' }, { name: 'tracking_id', type: 'String' }] }
-      ] as any[],
-    },
-    position: { x: 450, y: 500 },
-    type: 'diagram',
-  },
-  {
-    id: '6',
-    data: {
-      type: 'queue',
-      name: 'EventBus',
-      provider: 'kafka',
-      topics: ['order.created', 'payment.processed', 'user.registered'],
-    },
-    position: { x: 800, y: 500 },
-    type: 'diagram',
-  },
-]
-
-const initialEdges: Edge[] = [
-  {
-    id: 'e0-1',
-    source: '0',
-    target: '1',
-    label: 'ROUTES',
-    type: 'custom',
-    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
-  },
-  {
-    id: 'e0-2',
-    source: '0',
-    target: '2',
-    label: 'ROUTES',
-    type: 'custom',
-    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
-  },
-  {
-    id: 'e0-3',
-    source: '0',
-    target: '3',
-    label: 'ROUTES',
-    type: 'custom',
-    style: { stroke: '#10b981', strokeDasharray: '4,4', strokeWidth: 1.5 },
-  },
-  {
-    id: 'e1-4',
-    source: '1',
-    target: '4',
-    label: 'READS/WRITES',
-    type: 'custom',
-    style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
-  },
-  {
-    id: 'e2-5',
-    source: '2',
-    target: '5',
-    label: 'READS/WRITES',
-    type: 'custom',
-    style: { stroke: '#f59e0b', strokeDasharray: '4,4', strokeWidth: 1.5 },
-  },
-  {
-    id: 'e1-2',
-    source: '1',
-    target: '2',
-    label: 'REST',
-    type: 'custom',
-    style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
-  },
-  {
-    id: 'e2-3',
-    source: '2',
-    target: '3',
-    label: 'REST',
-    type: 'custom',
-    style: { stroke: '#6c3bf5', strokeDasharray: '4,4', strokeWidth: 1.5 },
-  },
-  {
-    id: 'e2-6',
-    source: '2',
-    target: '6',
-    label: 'PUBLISHES',
-    type: 'custom',
-    style: { stroke: '#c74cf0', strokeDasharray: '4,4', strokeWidth: 1.5 },
-  },
-]
-
 interface CanvasProps {
   selectedNode?: any
   setSelectedNode?: (node: any) => void
@@ -231,50 +49,143 @@ interface CanvasProps {
 }
 
 export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }: CanvasProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
-  
-  // Load saved state on mount or project change
-  useEffect(() => {
-    const savedNodes = localStorage.getItem(`diagram-nodes-${projectId}`)
-    const savedEdges = localStorage.getItem(`diagram-edges-${projectId}`)
-    
-    if (savedNodes) {
-      try {
-        setNodes(JSON.parse(savedNodes))
-      } catch (e) {
-        console.error('Failed to parse nodes:', e)
-      }
-    } else {
-      setNodes(initialNodes)
-    }
-    
-    if (savedEdges) {
-      try {
-        setEdges(JSON.parse(savedEdges))
-      } catch (e) {
-        console.error('Failed to parse edges:', e)
-      }
-    } else {
-      setEdges(initialEdges)
-    }
-  }, [projectId, setNodes, setEdges])
+  const router = useRouter()
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([])
 
-  // Save state on change
-  useEffect(() => {
-    if (nodes.length > 0) {
-      localStorage.setItem(`diagram-nodes-${projectId}`, JSON.stringify(nodes))
-    }
-  }, [nodes, projectId])
+  // 'idle' | 'saving' | 'saved' | 'error'
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [isLoading, setIsLoading] = useState(true)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const saveErrorToastRef = useRef<string | number | null>(null)
+  const isFirstLoad = useRef(true)
 
+  // ── Load diagram from backend on mount / project change ──────────────────
   useEffect(() => {
-    if (edges.length > 0) {
-      localStorage.setItem(`diagram-edges-${projectId}`, JSON.stringify(edges))
+    isFirstLoad.current = true
+    setSaveStatus('idle')
+    setIsLoading(true)
+
+    projectApi.getDiagram(projectId)
+      .then((diagram) => {
+        if (diagram && diagram.nodes?.length > 0) {
+          setNodes(diagram.nodes)
+          setEdges(diagram.edges ?? [])
+          setIsLoading(false)
+          setTimeout(() => { isFirstLoad.current = false }, 300)
+        } else {
+          setNodes([])
+          setEdges([])
+          if (projectId === 'default') {
+            // Auto-create a real project to replace the "default" placeholder
+            projectApi.createProject('New Project', 'Created automatically')
+              .then(res => {
+                toast.success('Created new project')
+                router.replace(`/${res.id}`)
+              })
+              .catch(createErr => {
+                console.error('Failed to auto-create project:', createErr)
+                toast.error('Failed to initialize a new project')
+                setIsLoading(false)
+              })
+          } else {
+            setIsLoading(false)
+            setTimeout(() => { isFirstLoad.current = false }, 300)
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load diagram:', err)
+        setNodes([])
+        setEdges([])
+        
+        if (projectId === 'default') {
+          projectApi.createProject('New Project', 'Created automatically')
+            .then(res => {
+              toast.success('Created new project')
+              router.replace(`/${res.id}`)
+            })
+            .catch(createErr => {
+              console.error('Failed to auto-create project:', createErr)
+              toast.error('Failed to initialize a new project')
+              setIsLoading(false)
+            })
+        } else {
+          toast.error('Could not load diagram', {
+            description: err?.message ?? 'Check your connection and try refreshing.',
+            duration: 6000,
+          })
+          setIsLoading(false)
+        }
+      })
+  }, [projectId, setNodes, setEdges, router])
+
+  // ── Debounced auto-save whenever nodes or edges change ───────────────────
+  useEffect(() => {
+    // Skip the very first population from the load effect above
+    if (isFirstLoad.current) return
+
+    setSaveStatus('saving')
+    // Dismiss any lingering save-error toast when the user makes a new change
+    if (saveErrorToastRef.current) {
+      toast.dismiss(saveErrorToastRef.current)
+      saveErrorToastRef.current = null
     }
-  }, [edges, projectId])
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      projectApi.saveDiagram(projectId, {
+        nodes,
+        edges,
+        timestamp: new Date().toISOString(),
+      })
+        .then(() => {
+          setSaveStatus('saved')
+          setTimeout(() => setSaveStatus('idle'), 2000)
+        })
+        .catch((err) => {
+          console.error('Auto-save failed:', err)
+          setSaveStatus('error')
+          // Show a persistent toast so the user knows their work isn't saved
+          saveErrorToastRef.current = toast.error('Diagram not saved', {
+            description: err?.message ?? 'Changes may be lost. Check your connection.',
+            duration: Infinity,
+            action: {
+              label: 'Retry',
+              onClick: () => {
+                if (saveErrorToastRef.current) {
+                  toast.dismiss(saveErrorToastRef.current)
+                  saveErrorToastRef.current = null
+                }
+                setSaveStatus('saving')
+                projectApi.saveDiagram(projectId, {
+                  nodes,
+                  edges,
+                  timestamp: new Date().toISOString(),
+                })
+                  .then(() => {
+                    setSaveStatus('saved')
+                    toast.success('Diagram saved')
+                    setTimeout(() => setSaveStatus('idle'), 2000)
+                  })
+                  .catch(() => {
+                    setSaveStatus('error')
+                    toast.error('Retry failed — diagram still not saved.')
+                  })
+              },
+            },
+          })
+        })
+    }, 500)
+
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    }
+  }, [nodes, edges, projectId])
 
   const [showNodeMenu, setShowNodeMenu] = useState(false)
   const [showJsonMenu, setShowJsonMenu] = useState(false)
+  const [isDownloadingCode, setIsDownloadingCode] = useState(false)
   const { setSelectedNode: storeSetSelectedNode, isChatbotExpanded, viewMode, setViewMode } = useDiagramStore()
 
   const onConnect = useCallback(
@@ -523,6 +434,31 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
     setShowNodeMenu(false)
   }
 
+  const handleDownloadCode = async () => {
+    if (!projectId || projectId === 'default') {
+      toast.error('Project not initialized yet.')
+      return
+    }
+
+    setIsDownloadingCode(true)
+    try {
+      await projectCodeApi.downloadZip(projectId)
+      toast.success('Code downloaded successfully.')
+    } catch (err: any) {
+      if (err?.message?.includes('No code files')) {
+        toast.info('No code generated yet', {
+          description: 'Code will be generated when the AI agent processes your architecture.',
+        })
+      } else {
+        toast.error('Failed to download code', {
+          description: err?.message || 'Could not download the project code.',
+        })
+      }
+    } finally {
+      setIsDownloadingCode(false)
+    }
+  }
+
   const exportDiagram = () => {
     const diagram = {
       nodes,
@@ -549,21 +485,32 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
     input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
       if (!file) return
-      
+
       const reader = new FileReader()
-      reader.onload = (e) => {
+      reader.onload = (ev) => {
         try {
-          const content = e.target?.result as string
+          const content = ev.target?.result as string
           const parsed = JSON.parse(content)
           if (parsed.nodes && parsed.edges) {
             setNodes(parsed.nodes)
             setEdges(parsed.edges)
+            toast.success('Diagram imported', {
+              description: `${parsed.nodes.length} nodes, ${parsed.edges.length} edges loaded.`,
+            })
           } else {
-            console.error('Invalid format')
+            toast.error('Invalid diagram file', {
+              description: 'The JSON must contain both "nodes" and "edges" arrays.',
+            })
           }
         } catch (err) {
           console.error('Failed to read file', err)
+          toast.error('Could not parse file', {
+            description: 'Make sure you selected a valid JSON diagram file.',
+          })
         }
+      }
+      reader.onerror = () => {
+        toast.error('File read error', { description: 'Could not read the selected file.' })
       }
       reader.readAsText(file)
     }
@@ -572,6 +519,25 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
 
   return (
     <div className="relative w-full h-full bg-[#0a0e1a]" ref={reactFlowWrapper} onDrop={onDrop} onDragOver={onDragOver}>
+
+      {/* Loading overlay — shown while diagram fetches from backend */}
+      <AnimatePresence>
+        {isLoading && (
+          <motion.div
+            key="canvas-loading"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="absolute inset-0 z-50 bg-[#0a0e1a] flex flex-col items-center justify-center gap-4"
+          >
+            <div className="relative flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full border-2 border-purple-500/20 border-t-purple-500 animate-spin" />
+              <div className="absolute w-6 h-6 rounded-full border-2 border-pink-500/20 border-b-pink-500 animate-spin" style={{ animationDirection: 'reverse', animationDuration: '0.6s' }} />
+            </div>
+            <p className="text-[12px] text-white/30 tracking-widest uppercase font-mono">Loading diagram…</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -634,7 +600,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
       {/* Code / Test View Overlay */}
       <AnimatePresence mode="wait">
         {viewMode === 'code' && (
-          <CodeViewer key="code-view" nodes={nodes} edges={edges} />
+          <CodeViewer key="code-view" nodes={nodes} edges={edges} projectId={projectId} />
         )}
         {viewMode === 'test' && (
           <APITester key="test-view" nodes={nodes} />
@@ -758,10 +724,19 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
 
           {/* Download Code */}
           <button
-            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
+            onClick={handleDownloadCode}
+            disabled={isDownloadingCode}
+            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Code2 size={14} />
-            Download Code
+            {isDownloadingCode ? (
+              <svg className="animate-spin w-3.5 h-3.5 text-white/60" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              </svg>
+            ) : (
+              <Code2 size={14} />
+            )}
+            {isDownloadingCode ? 'Downloading...' : 'Download Code'}
           </button>
         </div>
 
@@ -788,6 +763,22 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         <span>{edges.length} Edges</span>
         <span className="w-px h-3 bg-white/[0.06]" />
         <span className="font-mono text-purple-400/40">v1.2.0</span>
+        <span className="w-px h-3 bg-white/[0.06]" />
+        {saveStatus === 'saving' && (
+          <span className="flex items-center gap-1 text-white/30">
+            <svg className="animate-spin w-2.5 h-2.5" viewBox="0 0 24 24" fill="none">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            Saving…
+          </span>
+        )}
+        {saveStatus === 'saved' && (
+          <span className="text-emerald-400/60">Saved ✓</span>
+        )}
+        {saveStatus === 'error' && (
+          <span className="text-red-400/70">Save failed</span>
+        )}
       </div>
 
       {/* Delete Confirmation Modal */}
