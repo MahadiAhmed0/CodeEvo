@@ -8,6 +8,6 @@ import java.util.Optional;
 
 @Repository
 public interface ProjectSettingsRepository extends MongoRepository<ProjectSettings, String> {
-        Optional<ProjectSettings> findByProjectId(String projectId);
-        void deleteByProjectId(String projectId);
+    Optional<ProjectSettings> findByProjectId(String projectId);
+    void deleteByProjectId(String projectId);
 }
