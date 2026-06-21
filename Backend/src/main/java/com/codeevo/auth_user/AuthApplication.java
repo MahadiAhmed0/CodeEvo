@@ -6,7 +6,7 @@ import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactor
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.codeevo")
 public class AuthApplication {
 
     public static void main(String[] args) {
