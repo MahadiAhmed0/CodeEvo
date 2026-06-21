@@ -71,6 +71,7 @@ public class ProjectService {
 
         project = projectRepository.save(project);
         settingsService.initializeSettings(project.getId());
+        historyService.createSnapshot(project.getId(), userId, project.getDiagramJson(), 0, 0, "Initial project created");
         auditService.log(userId, project.getId(), "CREATE", null, ipAddress, userAgent);
 
         return mapToDetailDto(project);
