@@ -33,6 +33,7 @@ export default function ProjectPage({ params }: { params: Promise<{ project: str
               <Sidebar 
                 selectedNode={selectedNode} 
                 setSelectedNode={setSelectedNode} 
+                projectId={unwrappedParams.project}
                 onDeleteNode={(id) => {
                   // This will be handled by the Canvas, we trigger it via an event
                   window.dispatchEvent(new CustomEvent('delete-diagram-node', { detail: { id } }))
