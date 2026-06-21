@@ -1,4 +1,4 @@
-package com.codeevo.project.exception;
+package com.codeevo.project.exception; // Forced IDE recompile
 
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
