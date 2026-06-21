@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDiagramStore } from '@/lib/store'
+import { projectHistoryApi, type HistoryEntry } from '@/lib/api'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { 
@@ -29,6 +31,11 @@ import {
   Shield,
   Gauge,
   Globe,
+  RotateCcw,
+  RefreshCw,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react'
 import {
   Select,
@@ -50,6 +57,7 @@ interface SidebarProps {
   setSelectedNode?: (node: any) => void
   onDeleteNode?: (nodeId: string) => void
   onUpdateNode?: (nodeId: string, data: any) => void
+  projectId?: string
 }
 
 function TableColumnEditor({ item, itemIndex, itemType, engine, onUpdate }: { item: any, itemIndex: number, itemType: 'Table' | 'Collection', engine: string, onUpdate: (newItem: any, action: 'update' | 'delete') => void }) {
@@ -151,10 +159,72 @@ function TableColumnEditor({ item, itemIndex, itemType, engine, onUpdate }: { it
   )
 }
 
-export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateNode }: SidebarProps) {
+export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateNode, projectId }: SidebarProps) {
   const { setShowProjectSettings } = useDiagramStore()
   const [expanded, setExpanded] = useState(true)
   const [activeSection, setActiveSection] = useState<'nodes' | 'history' | 'inspector'>('nodes')
+
+  // ── History state ────────────────────────────────────────────────────────
+  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [restoringId, setRestoringId] = useState<string | null>(null)
+  const [confirmRestoreId, setConfirmRestoreId] = useState<string | null>(null)
+
+  const fetchHistory = useCallback(async () => {
+    if (!projectId || projectId === 'default') return
+    setHistoryLoading(true)
+    setHistoryError(null)
+    try {
+      const data = await projectHistoryApi.getHistory(projectId)
+      setHistoryEntries(data.content)
+    } catch (err: any) {
+      setHistoryError(err?.message ?? 'Failed to load history')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [projectId])
+
+  // Fetch history when switching to the history tab
+  useEffect(() => {
+    if (activeSection === 'history') {
+      fetchHistory()
+    }
+  }, [activeSection, fetchHistory])
+
+  const handleRestore = async (entry: HistoryEntry) => {
+    if (!projectId) return
+    setRestoringId(entry.id)
+    setConfirmRestoreId(null)
+    try {
+      await projectHistoryApi.restoreSnapshot(projectId, entry.id)
+      toast.success('Diagram restored', {
+        description: `Restored to snapshot ${entry.commitHash}`,
+      })
+      // Reload the page so the canvas picks up the restored diagram
+      window.location.reload()
+    } catch (err: any) {
+      toast.error('Restore failed', { description: err?.message })
+      setRestoringId(null)
+    }
+  }
+
+  const formatRelativeTime = (isoString: string): string => {
+    const diff = Date.now() - new Date(isoString).getTime()
+    const mins = Math.floor(diff / 60000)
+    const hrs = Math.floor(mins / 60)
+    const days = Math.floor(hrs / 24)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins}m ago`
+    if (hrs < 24) return `${hrs}h ago`
+    return `${days}d ago`
+  }
+
+  const formatDelta = (delta: number) => {
+    if (delta > 0) return `+${delta}`
+    if (delta < 0) return `${delta}`
+    return '±0'
+  }
 
   // Auto-switch to inspector when a node is selected
   const effectiveSection = selectedNode ? 'inspector' : activeSection
@@ -287,27 +357,118 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
               exit={{ opacity: 0, x: -10 }}
               className="p-4 space-y-2"
             >
-              <p className="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-3">Recent Changes</p>
-              {[
-                { message: 'Add PaymentService', time: '2 min ago', commit: 'a1b2c3d', status: 'success' },
-                { message: 'Connect OrderDB', time: '5 min ago', commit: 'x9y8z7w', status: 'success' },
-                { message: 'Add POST /payments', time: '1 hour ago', commit: 'p2q3r4s', status: 'success' },
-                { message: 'Initial architecture', time: '2 hours ago', commit: 'm4n5o6p', status: 'success' },
-              ].map((item, i) => (
-                <div key={i} className="group p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] cursor-pointer transition-all duration-200 hover:bg-white/[0.04]">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-semibold text-white/25 uppercase tracking-widest">Recent Changes</p>
+                <button
+                  onClick={fetchHistory}
+                  disabled={historyLoading}
+                  className="p-1 rounded-md text-white/25 hover:text-white/60 hover:bg-white/[0.06] transition-all duration-200 disabled:opacity-40"
+                  title="Refresh history"
+                >
+                  <RefreshCw className={`w-3 h-3 ${historyLoading ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+
+              {/* Loading state */}
+              {historyLoading && historyEntries.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-10 gap-3">
+                  <div className="w-6 h-6 rounded-full border-2 border-purple-500/20 border-t-purple-500 animate-spin" />
+                  <p className="text-[11px] text-white/25">Loading history…</p>
+                </div>
+              )}
+
+              {/* Error state */}
+              {historyError && (
+                <div className="flex flex-col items-center gap-2 py-6">
+                  <AlertTriangle className="w-5 h-5 text-red-400/60" />
+                  <p className="text-[11px] text-white/40 text-center">{historyError}</p>
+                  <button
+                    onClick={fetchHistory}
+                    className="text-[11px] text-purple-400 hover:text-purple-300 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!historyLoading && !historyError && historyEntries.length === 0 && (
+                <div className="flex flex-col items-center gap-2 py-8">
+                  <History className="w-6 h-6 text-white/10" />
+                  <p className="text-[11px] text-white/25 text-center">No history yet.<br />Save the diagram to create a snapshot.</p>
+                </div>
+              )}
+
+              {/* History entries */}
+              {historyEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="group relative p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.12] transition-all duration-200 hover:bg-white/[0.04]"
+                >
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5 w-5 h-5 rounded-md bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
                       <GitCommit className="w-3 h-3 text-emerald-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-medium text-white/70 group-hover:text-white/90 transition-colors">{item.message}</p>
-                      <p className="text-[11px] text-white/25 mt-0.5">
-                        <span className="font-mono text-purple-400/50">{item.commit}</span>
-                        <span className="mx-1.5">•</span>
-                        {item.time}
+                      <p className="text-[13px] font-medium text-white/70 group-hover:text-white/90 transition-colors truncate">
+                        {entry.message || 'Diagram saved'}
                       </p>
+                      <p className="text-[11px] text-white/25 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-purple-400/50">{entry.commitHash}</span>
+                        <span>•</span>
+                        <span>{formatRelativeTime(entry.createdAt)}</span>
+                      </p>
+                      {/* Node/edge delta badges */}
+                      {(entry.nodeDelta !== 0 || entry.edgeDelta !== 0) && (
+                        <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                          {entry.nodeDelta !== 0 && (
+                            <span className={`inline-flex items-center gap-0.5 text-[9px] font-mono px-1.5 py-0.5 rounded-md ${
+                              entry.nodeDelta > 0 ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
+                            }`}>
+                              {entry.nodeDelta > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                              {formatDelta(entry.nodeDelta)} nodes
+                            </span>
+                          )}
+                          {entry.edgeDelta !== 0 && (
+                            <span className={`inline-flex items-center gap-0.5 text-[9px] font-mono px-1.5 py-0.5 rounded-md ${
+                              entry.edgeDelta > 0 ? 'bg-blue-500/10 text-blue-400' : 'bg-red-500/10 text-red-400'
+                            }`}>
+                              {entry.edgeDelta > 0 ? <TrendingUp className="w-2.5 h-2.5" /> : <TrendingDown className="w-2.5 h-2.5" />}
+                              {formatDelta(entry.edgeDelta)} edges
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  {/* Restore controls — appear on hover */}
+                  {confirmRestoreId === entry.id ? (
+                    <div className="mt-2.5 pt-2.5 border-t border-white/[0.06] flex items-center gap-2">
+                      <p className="text-[10px] text-white/40 flex-1">Restore this snapshot?</p>
+                      <button
+                        onClick={() => handleRestore(entry)}
+                        disabled={restoringId === entry.id}
+                        className="px-2 py-1 text-[10px] font-medium rounded-md bg-purple-500/15 text-purple-400 hover:bg-purple-500/25 transition-all disabled:opacity-50"
+                      >
+                        {restoringId === entry.id ? 'Restoring…' : 'Confirm'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmRestoreId(null)}
+                        className="px-2 py-1 text-[10px] font-medium rounded-md bg-white/[0.04] text-white/40 hover:text-white/70 transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmRestoreId(entry.id)}
+                      className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-1 text-[10px] font-medium rounded-md bg-white/[0.04] border border-white/[0.06] text-white/40 hover:text-white/80 hover:bg-white/[0.08] hover:border-purple-500/20 transition-all duration-200"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" />
+                      Restore
+                    </button>
+                  )}
                 </div>
               ))}
             </motion.div>
