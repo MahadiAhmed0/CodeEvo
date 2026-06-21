@@ -30,54 +30,19 @@ import {
 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 
-const statsData = [
-  { label: 'Total Projects', value: '4', icon: FolderOpen, color: '#004aad', bg: '#004aad15' },
-  { label: 'Active Agents', value: '2', icon: Zap, color: '#cb6ce6', bg: '#cb6ce615' },
-  { label: 'Services Generated', value: '18', icon: Server, color: '#10b981', bg: '#10b98115' },
-  { label: 'Git Commits', value: '47', icon: GitCommit, color: '#f59e0b', bg: '#f59e0b15' },
-]
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { projectApi } from '@/lib/api'
+import { formatDistanceToNow } from 'date-fns'
 
 const chartData = [
   { month: 'Jan', commits: 12, agents: 4, services: 3 },
   { month: 'Feb', commits: 19, agents: 5, services: 5 },
   { month: 'Mar', commits: 15, agents: 3, services: 4 },
   { month: 'Apr', commits: 22, agents: 6, services: 7 },
-]
-
-const allProjects = [
-  {
-    id: 'e-commerce-system',
-    name: 'E-Commerce System',
-    description: 'Microservices for online shopping cart and checkout.',
-    services: 8,
-    lastUpdate: '2 hours ago',
-    status: 'active'
-  },
-  {
-    id: 'api-gateway',
-    name: 'API Gateway',
-    description: 'Main entry point routing definitions.',
-    services: 3,
-    lastUpdate: '15 min ago',
-    status: 'active'
-  },
-  {
-    id: 'notification-system',
-    name: 'Notification System',
-    description: 'Email and SMS queue handlers.',
-    services: 4,
-    lastUpdate: '1 day ago',
-    status: 'active'
-  },
-  {
-    id: 'my-first-system',
-    name: 'My First System',
-    description: 'Initial playground and testing.',
-    services: 3,
-    lastUpdate: '3 days ago',
-    status: 'inactive'
-  }
 ]
 
 const recentActivity = [
@@ -88,6 +53,44 @@ const recentActivity = [
 ]
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const [projects, setProjects] = useState<any[]>([])
+  const [stats, setStats] = useState<any>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectDesc, setNewProjectDesc] = useState('')
+
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return
+    try {
+      setIsCreating(true)
+      const res = await projectApi.createProject(newProjectName, newProjectDesc)
+      setIsOpen(false)
+      router.push(`/${res.id}`)
+    } catch (err) {
+      console.error('Failed to create project:', err)
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  useEffect(() => {
+    projectApi.listProjects().then(data => {
+      // Assuming paginated response with .content
+      setProjects(data.content || [])
+    }).catch(console.error)
+
+    projectApi.getDashboardStats().then(setStats).catch(console.error)
+  }, [])
+
+  const statsData = [
+    { label: 'Total Projects', value: stats?.totalProjects ?? 0, icon: FolderOpen, color: '#004aad', bg: '#004aad15' },
+    { label: 'Active Projects', value: stats?.activeProjects ?? 0, icon: Activity, color: '#cb6ce6', bg: '#cb6ce615' },
+    { label: 'Total Services', value: stats?.totalServiceNodes ?? 0, icon: Server, color: '#10b981', bg: '#10b98115' },
+    { label: 'Git Commits', value: '47', icon: GitCommit, color: '#f59e0b', bg: '#f59e0b15' }, // placeholder for git
+  ]
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#0a0e1a] text-white">
       <Navbar />
@@ -99,10 +102,52 @@ export default function DashboardPage() {
               <h1 className="text-4xl font-bold text-white mb-2">Dashboard</h1>
               <p className="text-white/60">Welcome back! Here&apos;s your system architecture overview.</p>
             </div>
-            <Button className="bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white hover:shadow-lg hover:shadow-purple-500/20 border-0">
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </Button>
+            <Dialog open={isOpen} onOpenChange={setIsOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white hover:shadow-lg hover:shadow-purple-500/20 border-0">
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Project
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px] bg-[#0d1220] border-white/[0.06] text-white">
+                <DialogHeader>
+                  <DialogTitle>Create Project</DialogTitle>
+                  <DialogDescription className="text-white/60">
+                    Set up a new project workspace to build your system architecture.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <label htmlFor="name" className="text-sm font-medium text-white/80">Project Name</label>
+                    <Input
+                      id="name"
+                      placeholder="e.g. E-Commerce Backend"
+                      value={newProjectName}
+                      onChange={(e) => setNewProjectName(e.target.value)}
+                      className="bg-white/[0.04] border-white/[0.06] text-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="desc" className="text-sm font-medium text-white/80">Description</label>
+                    <textarea
+                      id="desc"
+                      placeholder="Briefly describe what this project does..."
+                      value={newProjectDesc}
+                      onChange={(e) => setNewProjectDesc(e.target.value)}
+                      className="w-full min-h-[100px] rounded-md bg-white/[0.04] border border-white/[0.06] px-3 py-2 text-sm text-white placeholder:text-white/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-purple-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsOpen(false)} className="border-white/[0.06] text-white hover:bg-white/[0.04] hover:text-white bg-transparent">
+                    Cancel
+                  </Button>
+                  <Button onClick={handleCreateProject} disabled={isCreating || !newProjectName.trim()} className="bg-[#6c3bf5] text-white hover:bg-[#5b2bd5]">
+                    {isCreating ? 'Creating...' : 'Create Project'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Stats Grid */}
@@ -216,33 +261,41 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {allProjects.slice(0, 3).map((project, i) => (
-                <Link href={`/${project.id}`} key={project.id}>
-                  <div className="group p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06] hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all cursor-pointer h-full flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="p-2.5 rounded-lg bg-gradient-to-br from-[#6c3bf5]/20 to-[#c74cf0]/20 border border-purple-500/20">
-                          <FolderOpen className="w-5 h-5 text-purple-400" />
+              {projects.length === 0 ? (
+                <div className="col-span-full py-8 text-center text-white/40 border border-white/[0.06] rounded-xl bg-[#0d1220]/50 border-dashed">
+                  No projects yet. Create one to get started!
+                </div>
+              ) : (
+                projects.slice(0, 3).map((project, i) => (
+                  <Link href={`/${project.id}`} key={project.id}>
+                    <div className="group p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06] hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all cursor-pointer h-full flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="p-2.5 rounded-lg bg-gradient-to-br from-[#6c3bf5]/20 to-[#c74cf0]/20 border border-purple-500/20">
+                            <FolderOpen className="w-5 h-5 text-purple-400" />
+                          </div>
+                          <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${project.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/[0.04] text-white/40 border-white/[0.06]'}`}>
+                            {project.status === 'active' ? 'Active' : 'Inactive'}
+                          </span>
                         </div>
-                        <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border ${project.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-white/[0.04] text-white/40 border-white/[0.06]'}`}>
-                          {project.status === 'active' ? 'Active' : 'Inactive'}
-                        </span>
+                        <h3 className="font-bold text-white/90 text-lg mb-2">{project.name}</h3>
+                        <p className="text-sm text-white/50 mb-4 line-clamp-2">{project.description || 'No description provided.'}</p>
                       </div>
-                      <h3 className="font-bold text-white/90 text-lg mb-2">{project.name}</h3>
-                      <p className="text-sm text-white/50 mb-4 line-clamp-2">{project.description}</p>
+                      <div>
+                        <div className="flex items-center gap-4 text-[13px] font-medium text-white/40 mb-4">
+                          <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-purple-400" /> {project.serviceCount ?? 0} Services</span>
+                        </div>
+                        <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
+                          <span className="text-[11px] font-medium text-white/30">
+                            Updated {project.updatedAt ? formatDistanceToNow(new Date(project.updatedAt), { addSuffix: true }) : 'just now'}
+                          </span>
+                          <ArrowRight className="w-4 h-4 text-white/20 group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="flex items-center gap-4 text-[13px] font-medium text-white/40 mb-4">
-                        <span className="flex items-center gap-1.5"><Zap className="w-3.5 h-3.5 text-purple-400" /> {project.services} Services</span>
-                      </div>
-                      <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
-                        <span className="text-[11px] font-medium text-white/30">Updated {project.lastUpdate}</span>
-                        <ArrowRight className="w-4 h-4 text-white/20 group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                ))
+              )}
             </div>
           </motion.div>
 
