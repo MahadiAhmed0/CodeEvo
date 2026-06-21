@@ -1,27 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Navbar } from '@/components/navbar'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { FolderOpen, Zap, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react'
-
-// Generate 25 mock projects for pagination demonstration
-const allProjectsData = Array.from({ length: 25 }, (_, i) => ({
-  id: `project-${i + 1}`,
-  name: `System Project ${i + 1}`,
-  description: `Architecture and microservices definition for project ${i + 1}.`,
-  services: Math.floor(Math.random() * 12) + 1,
-  lastUpdate: `${Math.floor(Math.random() * 24) + 1} hours ago`,
-  status: i % 5 === 0 ? 'inactive' : 'active'
-}))
+import { projectApi } from '@/lib/api'
+import { formatDistanceToNow } from 'date-fns'
 
 export default function ProjectsPage() {
+  const [allProjectsData, setAllProjectsData] = useState<any[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 9
   
-  const totalPages = Math.ceil(allProjectsData.length / itemsPerPage)
+  useEffect(() => {
+    projectApi.listProjects()
+      .then(data => {
+        setAllProjectsData(data.content || [])
+      })
+      .catch(console.error)
+  }, [])
+
+  const totalPages = Math.ceil(allProjectsData.length / itemsPerPage) || 1
   const startIndex = (currentPage - 1) * itemsPerPage
   const currentProjects = allProjectsData.slice(startIndex, startIndex + itemsPerPage)
 
@@ -38,38 +39,46 @@ export default function ProjectsPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {currentProjects.map((project, i) => (
-              <motion.div
-                key={project.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: (i % itemsPerPage) * 0.05 }}
-              >
-                <Link href={`/${project.id}`}>
-                  <div className="group p-6 rounded-xl bg-[#0d1220] border border-white/[0.06] hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all cursor-pointer h-full flex flex-col justify-between">
-                    <div>
-                      <div className="flex items-center justify-between mb-3">
-                        <FolderOpen className="w-8 h-8 text-purple-400" />
-                        <span className={`px-2 py-1 text-[11px] font-semibold rounded-full ${project.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/[0.04] text-white/40'}`}>
-                          {project.status === 'active' ? 'Active' : 'Inactive'}
-                        </span>
+            {currentProjects.length === 0 ? (
+              <div className="col-span-full py-12 text-center text-white/40 border border-white/[0.06] rounded-xl bg-[#0d1220]/50 border-dashed">
+                No projects found. Create your first project to see it here!
+              </div>
+            ) : (
+              currentProjects.map((project, i) => (
+                <motion.div
+                  key={project.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: (i % itemsPerPage) * 0.05 }}
+                >
+                  <Link href={`/${project.id}`}>
+                    <div className="group p-6 rounded-xl bg-[#0d1220] border border-white/[0.06] hover:border-purple-500/50 hover:shadow-lg hover:shadow-purple-500/10 transition-all cursor-pointer h-full flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <FolderOpen className="w-8 h-8 text-purple-400" />
+                          <span className={`px-2 py-1 text-[11px] font-semibold rounded-full ${project.status === 'active' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/[0.04] text-white/40'}`}>
+                            {project.status === 'active' ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                        <h3 className="font-bold text-white text-lg mb-2">{project.name}</h3>
+                        <p className="text-sm text-white/40 mb-4">{project.description || 'No description provided.'}</p>
                       </div>
-                      <h3 className="font-bold text-white text-lg mb-2">{project.name}</h3>
-                      <p className="text-sm text-white/40 mb-4">{project.description}</p>
+                      <div>
+                        <div className="flex items-center gap-4 text-sm text-white/60 mb-4">
+                          <span className="flex items-center gap-1.5"><Zap className="w-4 h-4 text-[#cb6ce6]" /> {project.serviceCount ?? 0} Services</span>
+                        </div>
+                        <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
+                          <span className="text-[11px] font-medium text-white/30">
+                            UPDATED {project.updatedAt ? formatDistanceToNow(new Date(project.updatedAt), { addSuffix: true }).toUpperCase() : 'JUST NOW'}
+                          </span>
+                          <ArrowRight className="w-4 h-4 text-white/30 group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="flex items-center gap-4 text-sm text-white/60 mb-4">
-                        <span className="flex items-center gap-1.5"><Zap className="w-4 h-4 text-[#cb6ce6]" /> {project.services} Services</span>
-                      </div>
-                      <div className="flex items-center justify-between pt-4 border-t border-white/[0.06]">
-                        <span className="text-[11px] font-medium text-white/30">UPDATED {project.lastUpdate.toUpperCase()}</span>
-                        <ArrowRight className="w-4 h-4 text-white/30 group-hover:text-purple-400 group-hover:translate-x-1 transition-all" />
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
+                  </Link>
+                </motion.div>
+              ))
+            )}
           </div>
 
           {/* Pagination Controls */}
