@@ -13,5 +13,6 @@ public class ProjectHistoryEntryDto {
     private Integer nodeDelta;
     private Integer edgeDelta;
     private Instant createdAt;
+    private String createdBy;
     private String diagramJson; // Optional, only returned for specific history entry fetch
 }
