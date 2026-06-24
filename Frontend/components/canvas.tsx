@@ -4,6 +4,7 @@ import { useCallback, useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { projectApi, projectCodeApi } from '@/lib/api'
 import { toast } from 'sonner'
+import { useAgentStore } from '@/lib/agent-store'
 import ReactFlow, {
   Node,
   Edge,
@@ -182,6 +183,36 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     }
   }, [nodes, edges, projectId])
+
+  // ── Subscribe to Visual Architect GRAPH_UPDATE events ───────────────────
+  const latestGraphUpdate = useAgentStore(s => s.latestGraphUpdate)
+
+  useEffect(() => {
+    if (!latestGraphUpdate) return
+
+    const incomingNodes = latestGraphUpdate.nodes ?? []
+    const incomingEdges = latestGraphUpdate.edges ?? []
+
+    if (incomingNodes.length === 0) return
+
+    // Merge: keep existing nodes not in the update, replace those that are
+    setNodes(prev => {
+      const existingIds = new Set(incomingNodes.map((n: any) => n.id))
+      const kept = prev.filter(n => !existingIds.has(n.id))
+      return [...kept, ...incomingNodes]
+    })
+
+    setEdges(prev => {
+      const incomingEdgeIds = new Set(incomingEdges.map((e: any) => e.id))
+      const kept = prev.filter(e => !incomingEdgeIds.has(e.id))
+      return [...kept, ...incomingEdges]
+    })
+
+    toast.success('Architecture updated by Visual Architect', {
+      description: latestGraphUpdate.summary ?? 'New nodes and edges added to canvas.',
+      duration: 4000,
+    })
+  }, [latestGraphUpdate, setNodes, setEdges])
 
   const [showNodeMenu, setShowNodeMenu] = useState(false)
   const [showJsonMenu, setShowJsonMenu] = useState(false)
