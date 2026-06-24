@@ -1,23 +1,14 @@
 package com.codeevo.project;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory;
-import org.springframework.boot.web.server.WebServerFactoryCustomizer;
-import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-@SpringBootApplication(scanBasePackages = "com.codeevo")
+/**
+ * Marker class for the project module.
+ * All project beans are picked up automatically by CodeEvoApplication's component scan.
+ * This class is intentionally minimal — the single application entry point is
+ * {@link com.codeevo.CodeEvoApplication}.
+ */
+@Configuration
 public class ProjectApplication {
-
-    public static void main(String[] args) {
-        SpringApplication.run(ProjectApplication.class, args);
-    }
-
-    @Bean
-    public WebServerFactoryCustomizer<TomcatServletWebServerFactory> projectTomcatCustomizer() {
-        return factory -> factory.addConnectorCustomizers(connector -> {
-            connector.setProperty("maxHttpHeaderSize", "65536");
-        });
-    }
-
+    // Intentionally empty — module wired via @ComponentScan from CodeEvoApplication
 }
