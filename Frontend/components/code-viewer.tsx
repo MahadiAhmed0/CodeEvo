@@ -18,6 +18,7 @@ import {
 import { projectCodeApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { useDiagramStore } from '@/lib/store'
+import { useAgentStore } from '@/lib/agent-store'
 
 // Basic syntax highlighting colors
 const colors = {
@@ -90,26 +91,76 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
   const [isLoadingCode, setIsLoadingCode] = useState(false)
   const [hasBackendFiles, setHasBackendFiles] = useState(false)
 
-  // Load backend code files when the viewer mounts
-  useEffect(() => {
+  const { events } = useAgentStore()
+  const lastEvent = events[events.length - 1]
+
+  const loadTree = (isInitial = false) => {
     if (!projectId) return
 
-    setIsLoadingCode(true)
+    if (isInitial) setIsLoadingCode(true)
     projectCodeApi.getFileTree(projectId)
       .then((treeResponse) => {
         if (treeResponse.totalFiles > 0) {
           setBackendTree(treeResponse.tree)
           setHasBackendFiles(true)
+          
+          // If we have an active file open, attempt to update its content to the latest version
+          setActiveFile((prevActive) => {
+            if (!prevActive) return null
+            // Recursive search to find the updated file content in the new tree
+            const findUpdatedFile = (treeNode: any): any => {
+              for (const key in treeNode) {
+                const item = treeNode[key]
+                if (item.type === 'file' && item.name === prevActive.name) {
+                  return item // Found the updated file object
+                }
+                if (item.children) {
+                  const found = findUpdatedFile(item.children)
+                  if (found) return found
+                }
+              }
+              return null
+            }
+            const updated = findUpdatedFile(treeResponse.tree)
+            return updated || prevActive
+          })
         } else {
           setHasBackendFiles(false)
         }
       })
       .catch((err) => {
         console.error('Failed to load code files:', err)
-        setHasBackendFiles(false)
+        if (isInitial) setHasBackendFiles(false)
       })
-      .finally(() => setIsLoadingCode(false))
+      .finally(() => {
+        if (isInitial) setIsLoadingCode(false)
+      })
+  }
+
+  // Load backend code files when the viewer mounts
+  useEffect(() => {
+    loadTree(true)
   }, [projectId])
+
+  // Auto-refresh whenever the agent creates/edits a file or finishes a task
+  useEffect(() => {
+    if (lastEvent?.type === 'DIFF_READY') {
+      const payload = lastEvent.payload as any
+      // 1. Instantly use the push response payload to show the code (SSE style)
+      setActiveFile((prevActive) => {
+        const eventFileName = payload.filePath.split('/').pop()
+        if (prevActive && prevActive.name === eventFileName) {
+          return { ...prevActive, content: payload.modifiedContent }
+        }
+        // If no file is open and this is the first file, or to auto-switch to newly edited file:
+        return { name: eventFileName, content: payload.modifiedContent, type: 'file' }
+      })
+      // 2. Silently pull the tree in the background just to update the sidebar folder structure
+      loadTree(false)
+    } else if (lastEvent?.type === 'TASK_COMPLETE') {
+      loadTree(false)
+    }
+  }, [lastEvent])
 
   // Use backend tree
   const fileTree = backendTree || {}
@@ -139,15 +190,50 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
     { id: 'WARN-ORD-01', type: 'warning', message: 'OrderService DB URI not found, using fallback in-memory store.', file: 'OrderService/application.yml', line: 15 }
   ]
 
-  // Syntax highlighting mock (very basic)
+  // Strips LLM-injected Tailwind CSS artifacts from code content.
+  // Handles ALL variants: full "text-pink-400">, partial 400">, middle pink-400">
+  const sanitizeCode = (content: string): string => {
+    // 1. Decode HTML entities first (so &quot;&gt; becomes ">)
+    let decoded = content
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+
+    // 2. Remove full HTML tags: <span class="text-pink-400">word</span>
+    decoded = decoded.replace(/<[^>]*>/g, '')
+
+    // 3. Remove ANY fragment ending in digits+"> — this catches:
+    //   "text-pink-400">   400">   pink-400">   "text-gray-500">   500">
+    decoded = decoded.replace(/(?:"[a-zA-Z0-9_-]*)?[a-zA-Z_-]*\d{3}">/g, '')
+
+    return decoded
+  }
+
+  // Syntax highlighting (HTML-safe)
   const renderCode = (content: string) => {
-    return content.split('\n').map((line, i) => {
-      // Basic heuristic highlighting
-      let highlightedLine = line
-        .replace(/\b(package|import|public|class|static|void|func|const|require|module|go|return)\b/g, `<span class="${colors.keyword}">$1</span>`)
-        .replace(/\b(String|int|boolean|fmt|log|http|express|res|req|console)\b/g, `<span class="${colors.function}">$1</span>`)
-        .replace(/(["'].*?["'])/g, `<span class="${colors.string}">$1</span>`)
-        .replace(/(\/\/.*)/g, `<span class="${colors.comment}">$1</span>`)
+    const clean = sanitizeCode(content)
+    return clean.split('\n').map((line, i) => {
+      // STEP 1: Escape HTML entities so < > & " in raw code are never treated as HTML tags
+      let escaped = line
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+
+      // STEP 2: Apply highlighting on the safely escaped string
+      // We use (?![^<]*>) to ensure we don't accidentally match and replace text INSIDE an already-inserted HTML tag.
+      let highlightedLine = escaped
+        .replace(/\b(package|import|public|private|protected|class|static|void|final|new|return|if|else|for|while|try|catch|throws|extends|implements|interface|enum|abstract|super|this|null|true|false|const|require|module|func|go|type|struct)\b(?![^<]*>)/g,
+          `<span class="${colors.keyword}">$1</span>`)
+        .replace(/\b(String|int|long|boolean|double|float|char|byte|short|Integer|Long|Boolean|List|Map|Set|Optional|UUID|void)\b(?![^<]*>)/g,
+          `<span class="${colors.function}">$1</span>`)
+        .replace(/(&quot;[^&]*?&quot;|&#39;[^&]*?&#39;)(?![^<]*>)/g,
+          `<span class="${colors.string}">$1</span>`)
+        .replace(/(\/\/.*)(?![^<]*>)/g,
+          `<span class="${colors.comment}">$1</span>`)
+        .replace(/\b(\d+)\b(?![^<]*>)/g,
+          `<span class="${colors.number}">$1</span>`)
 
       return (
         <div key={i} className="flex group hover:bg-white/[0.02]">
