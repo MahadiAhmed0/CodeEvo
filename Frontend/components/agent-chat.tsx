@@ -173,14 +173,7 @@ export function AgentChat({
   sessionId?: string
   projectId?: string
 }) {
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([{
-    id: 'welcome',
-    role: 'agent',
-    agentType: 'CHAT',
-    content: "Hello! I'm CodeEvo Chat AI, your senior software architect. I can answer questions about your codebase, design new architectural components, and generate code. What would you like to build?",
-    timestamp: new Date(),
-    eventType: 'MESSAGE',
-  }])
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
@@ -194,14 +187,53 @@ export function AgentChat({
 
   useEffect(() => { setIsMounted(true) }, [])
 
-  // Connect to WebSocket when the panel opens
+  // Load chat history when project changes
+  useEffect(() => {
+    if (!projectId) return
+
+    const key = `codeevo-chat-${projectId}`
+    const saved = localStorage.getItem(key)
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved, (k, v) => {
+          if (k === 'timestamp' && typeof v === 'string') return new Date(v)
+          return v
+        })
+        setChatMessages(parsed)
+      } catch (e) {
+        console.error('Failed to parse chat history', e)
+        setChatMessages([])
+      }
+    } else {
+      // Default welcome message for new projects
+      setChatMessages([{
+        id: 'welcome',
+        role: 'agent',
+        agentType: 'CHAT',
+        content: "Hello! I'm CodeEvo Chat AI, your senior software architect. I can answer questions about your codebase, design new architectural components, and generate code. What would you like to build?",
+        timestamp: new Date(),
+        eventType: 'MESSAGE',
+      }])
+    }
+    // Reset processed event index when project switches
+    processedIndexRef.current = 0
+  }, [projectId])
+
+  // Save chat history whenever it changes
+  useEffect(() => {
+    if (projectId && chatMessages.length > 0) {
+      localStorage.setItem(`codeevo-chat-${projectId}`, JSON.stringify(chatMessages))
+    }
+  }, [chatMessages, projectId])
+
+  // Connect to WebSocket when the panel opens or project changes
   useEffect(() => {
     const effectiveSession = sessionId ?? projectId ?? ''
-    if (isOpen && effectiveSession && !isConnected) {
+    if (isOpen && effectiveSession) {
       const token = useAuthStore.getState().accessToken ?? undefined
       connect(effectiveSession, projectId ?? effectiveSession, token)
     }
-  }, [isOpen, sessionId, projectId, isConnected, connect])
+  }, [isOpen, sessionId, projectId, connect])
 
   // Convert incoming agent events → chat messages.
   // Tracks last-processed index via a ref so ALL events are processed even when
