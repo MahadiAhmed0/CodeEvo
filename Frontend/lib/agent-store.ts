@@ -80,7 +80,13 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   lastUserQuery: null,
 
   connect: async (sessionId, projectId, token) => {
-    set({ sessionId, projectId })
+    // If already connected to a different session, disconnect first
+    if (get().isConnected) {
+      if (get().sessionId === sessionId) return // already connected to this session
+      get().disconnect()
+    }
+
+    set({ sessionId, projectId, events: [], pendingApprovals: [] })
 
     await stompClient.connect(token)
     set({ isConnected: true })
