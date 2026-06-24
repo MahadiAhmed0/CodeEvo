@@ -99,7 +99,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         console.error('Failed to load diagram:', err)
         setNodes([])
         setEdges([])
-        
+
         if (projectId === 'default') {
           projectApi.createProject('New Project', 'Created automatically')
             .then(res => {
@@ -223,11 +223,11 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
     (connection: Connection) => {
       const sourceNode = nodes.find(n => n.id === connection.source)
       const targetNode = nodes.find(n => n.id === connection.target)
-      
-      const isServiceToService = 
-        sourceNode?.data?.type === 'service' && 
+
+      const isServiceToService =
+        sourceNode?.data?.type === 'service' &&
         targetNode?.data?.type === 'service'
-        
+
       const edgeColor = isServiceToService ? '#6c3bf5' : '#10b981'
 
       setEdges((eds) =>
@@ -326,7 +326,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
           }
           return n
         }))
-        
+
         // Ensure this updater is called outside of the setNodes mapping!
         if (selectedNode?.id === customEvent.detail.id && setSelectedNode) {
           setSelectedNode({
@@ -340,7 +340,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('delete-diagram-node', handleDeleteEvent)
     window.addEventListener('update-diagram-node', handleUpdateEvent)
-    
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('delete-diagram-node', handleDeleteEvent)
@@ -761,8 +761,8 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
           >
             {isDownloadingCode ? (
               <svg className="animate-spin w-3.5 h-3.5 text-white/60" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
               </svg>
             ) : (
               <Code2 size={14} />
@@ -774,7 +774,11 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         {/* Right - Generate Code Button */}
         <div className="shrink-0">
           <button
-            onClick={() => setViewMode('code')}
+            onClick={() => {
+              const message = "Generate code for this project based on the current architecture diagram. If code does not exist, generate the full code for all nodes. If code already exists, update it to match any recent changes in the architecture."
+              useAgentStore.getState().sendMessage(message)
+              useDiagramStore.getState().setIsChatbotExpanded(true)
+            }}
             disabled={viewMode !== 'graph'}
             className="px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white rounded-xl text-[13px] font-semibold flex items-center gap-2 hover:shadow-[0_0_15px_rgba(199,76,240,0.4)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
           >
@@ -798,8 +802,8 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         {saveStatus === 'saving' && (
           <span className="flex items-center gap-1 text-white/30">
             <svg className="animate-spin w-2.5 h-2.5" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
             </svg>
             Saving…
           </span>
@@ -822,13 +826,13 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel 
+            <AlertDialogCancel
               onClick={cancelDeleteNode}
               className="bg-white/[0.04] text-white hover:bg-white/[0.08] border-white/[0.08] hover:text-white"
             >
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={confirmDeleteNode}
               className="bg-red-500/80 hover:bg-red-500 text-white border-0"
             >
