@@ -30,8 +30,8 @@ public class ToolRegistry {
                 List.of("query")),
 
             buildTool("delegate_to_visual_architect",
-                "Trigger ONLY when the user wants to ADD a new architectural component. " +
-                "This agent will design it on the canvas first and ask for permission before any code is generated.",
+                "Trigger ONLY when the user explicitly wants to ADD a brand new architectural node (like a new microservice, database, message queue, or external API) to the canvas. " +
+                "Do NOT use this if the node already exists on the canvas. If the user wants to generate code for a node that already exists, use delegate_to_coding_agent instead.",
                 Map.of(
                     "architecture_request", strProp("Technical description of the new architectural component(s)"),
                     "current_context_summary", strProp("2-3 sentence summary of the relevant existing architecture")
@@ -39,8 +39,9 @@ public class ToolRegistry {
                 List.of("architecture_request", "current_context_summary")),
 
             buildTool("delegate_to_coding_agent",
-                "Trigger ONLY when the user wants to CREATE, MODIFY, or DELETE code in existing files " +
-                "without changing the high-level architecture graph.",
+                "Trigger ONLY when the user wants to CREATE, MODIFY, or DELETE code, or when the user asks to implement the code for a service that already exists on the architecture graph. " +
+                "Do NOT use this tool if the user is just asking a question or asking you to review/explain code. " +
+                "If the user asks a question, use search_project_context to find the code and answer it yourself.",
                 Map.of(
                     "task_summary", strProp("Highly detailed, unambiguous description of what needs to be coded"),
                     "target_files", arrayProp("Optional: List of absolute file paths that will likely be involved"),
@@ -70,8 +71,8 @@ public class ToolRegistry {
             buildTool("render_reactflow_graph",
                 "Sends ReactFlow node/edge JSON to the frontend canvas. This is a PREVIEW ONLY — no code is written.",
                 Map.of(
-                    "nodes", arrayProp("Array of ReactFlow node objects to add"),
-                    "edges", arrayProp("Array of connection objects between nodes"),
+                    "nodes", objectArrayProp("Array of ReactFlow node objects to add"),
+                    "edges", objectArrayProp("Array of connection objects between nodes"),
                     "summary", strProp("2-3 sentence human-readable summary of the proposed architecture")
                 ),
                 List.of("nodes", "edges", "summary")),
@@ -92,13 +93,20 @@ public class ToolRegistry {
 
     public List<Map<String, Object>> getCodingTools() {
         return List.of(
+            buildTool("list_project_files",
+                "Lists ALL existing code files in this project's database. " +
+                "ALWAYS call this FIRST before any other tool to understand what files already exist. " +
+                "This tells you the exact relative file paths to use with view_file and replace_file_content.",
+                Map.of(),
+                List.of()),
+
             buildTool("search_codebase",
-                "Searches project files for a class name, annotation, method, or string. " +
-                "Use this to locate exact file paths before reading or modifying. DO NOT guess paths.",
+                "Searches the project database for files containing a class name, method, annotation, or string. " +
+                "Returns matching file paths with content snippets. Use this to locate exact paths before editing.",
                 Map.of(
                     "query", strProp("The search string, class name, or pattern"),
                     "search_type", enumProp("Search strategy", "class_name", "method_name", "annotation", "string_literal", "regex"),
-                    "directory_scope", strProp("Optional: restrict search to a subdirectory")
+                    "directory_scope", strProp("Optional: restrict search to files whose path starts with this prefix")
                 ),
                 List.of("query", "search_type")),
 
@@ -123,11 +131,14 @@ public class ToolRegistry {
                 List.of("file_path", "target_content", "replacement_content", "change_description")),
 
             buildTool("create_file",
-                "Creates a new file with the specified content. Check with search_codebase first.",
+                "Creates a new code file OR completely overwrites an existing file in the project database. " +
+                "Use this instead of replace_file_content when a file is corrupted or needs a total rewrite. " +
+                "Use relative project paths (e.g. 'src/main/java/com/example/UserService.java').",
                 Map.of(
-                    "file_path", strProp("Absolute path for the new file"),
-                    "content", strProp("Complete source code content"),
-                    "change_description", strProp("Why this file is being created")
+                    "file_path", strProp("Relative project path for the new file (e.g. src/main/java/com/example/UserService.java)"),
+                    "content", strProp("Complete source code content of the file"),
+                    "change_description", strProp("One-sentence summary of why this file is being created"),
+                    "language", strProp("Optional: file language hint (java, typescript, yaml, xml, json, etc.)")
                 ),
                 List.of("file_path", "content", "change_description")),
 
@@ -200,6 +211,11 @@ public class ToolRegistry {
     private Map<String, Object> arrayProp(String description) {
         return Map.of("type", "array", "description", description,
                 "items", Map.of("type", "string"));
+    }
+
+    private Map<String, Object> objectArrayProp(String description) {
+        return Map.of("type", "array", "description", description,
+                "items", Map.of("type", "object", "additionalProperties", true));
     }
 
     private Map<String, Object> enumProp(String description, String... values) {
