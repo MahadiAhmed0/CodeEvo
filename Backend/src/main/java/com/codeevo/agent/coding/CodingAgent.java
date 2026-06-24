@@ -79,7 +79,7 @@ public class CodingAgent {
 
         int consecutiveErrors = 0;
         int iterations = 0;
-        int maxIterations = 30; // Safety cap for long tasks
+        int maxIterations = 100; // Safety cap for long tasks
 
         while (iterations++ < maxIterations) {
             LlmResponse response = llmClient.chat(scratchpad, toolRegistry.getCodingTools());
