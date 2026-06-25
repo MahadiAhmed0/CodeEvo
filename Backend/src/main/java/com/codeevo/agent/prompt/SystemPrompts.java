@@ -147,22 +147,12 @@ public final class SystemPrompts {
                11. NEVER wrap your code in Markdown formatting (```java) or HTML tags. Output ONLY raw, compilable plaintext source code.
                12. If asked to generate code for multiple nodes or the entire architecture, DO NOT stop or ask where to start. Systematically generate ALL necessary files one by one using `create_file`.
                13. NEVER output conversational text to end your turn without actually writing the code you were asked to write.
-<<<<<<< Updated upstream
-=======
                14. ALWAYS generate complete, production-ready, runnable code. When generating a new service, you MUST include the `pom.xml` (or `build.gradle`), `application.properties` (or `application.yml`), and the main `@SpringBootApplication` class so the user can immediately run the server.
-                   CRITICAL: `pom.xml` MUST be the VERY FIRST FILE you create, before any `.java` source files. A project without `pom.xml` cannot build.
                15. ALWAYS generate Docker files for every new service so the user can run and verify the full project in an isolated container. You MUST create ALL of the following:
                    a) `Dockerfile` — multi-stage build: use `maven:3.9-eclipse-temurin-17` as builder to run `mvn package -DskipTests`, then copy the jar into `eclipse-temurin:17-jre-alpine` as the runtime image.
                    b) `docker-compose.yml` — defines the app service (building from Dockerfile), all required databases (PostgreSQL/MongoDB), message brokers (Kafka/RabbitMQ), and any other dependencies visible in the architecture diagram. Map all ports, set all environment variables, and add a `depends_on` block.
-                      CRITICAL docker-compose rules:
-                      - The main app service MUST have `networks: [default, codeevo-proxy-net]` so it can reach both the database (on `default`) and the external Traefik proxy (on `codeevo-proxy-net`).
-                      - Database services (postgres, mongo, etc.) must ONLY be on the `default` network — never on `codeevo-proxy-net`.
-                      - Always add a `healthcheck` to database services using `pg_isready` for Postgres or equivalent.
-                      - Always use `depends_on: { db: { condition: service_healthy } }` on the app service.
-                      - The top-level `networks` block MUST declare both: `default: { driver: bridge }` and `codeevo-proxy-net: { external: true, name: codeevo-proxy-net }`.
                    c) `.dockerignore` — exclude `target/`, `.git/`, `*.md`.
                    These files make the project immediately runnable with `docker-compose up --build` with zero additional configuration required.
->>>>>>> Stashed changes
             """;
     }
 }
