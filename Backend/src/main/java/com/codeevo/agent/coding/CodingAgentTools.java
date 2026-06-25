@@ -437,13 +437,6 @@ public class CodingAgentTools {
                 .replace("&quot;", "\"")
                 .replace("&#39;", "'");
 
-        // 2. Remove full HTML tags: <span class="text-pink-400">
-        decoded = decoded.replaceAll("<[^>]*>", "");
-
-        // 3. Remove ALL variants of Tailwind class fragments (full, partial, or middle):
-        //   "text-pink-400">   400">   pink-400">   500">   "text-gray-500">
-        decoded = decoded.replaceAll("(?:\"[a-zA-Z0-9_-]*)?[a-zA-Z_-]*\\d{3}\">", "");
-
         return decoded;
     }
 }
