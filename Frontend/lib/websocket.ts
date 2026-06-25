@@ -84,6 +84,16 @@ class StompClientWrapper {
     return subId
   }
 
+  subscribeRaw(destination: string, callback: (message: IMessage) => void): string {
+    if (!this.client?.connected) {
+      console.warn('[STOMP] subscribeRaw called before connection — queuing')
+    }
+    const subId = `sub-${Date.now()}-${Math.random()}`
+    const sub = this.client!.subscribe(destination, callback)
+    this.subscriptions.set(subId, sub)
+    return subId
+  }
+
   unsubscribe(subId: string) {
     this.subscriptions.get(subId)?.unsubscribe()
     this.subscriptions.delete(subId)

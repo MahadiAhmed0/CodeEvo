@@ -473,3 +473,41 @@ export const projectCodeApi = {
     window.URL.revokeObjectURL(url)
   },
 }
+
+// ─── Docker Execution API ──────────────────────────────────────────────────
+
+export interface DockerStatusResponse {
+  status: 'BUILDING' | 'RUNNING' | 'STOPPED' | 'FAILED'
+  previewUrl?: string
+}
+
+export const dockerApi = {
+  startDocker: async (projectId: string): Promise<DockerStatusResponse> => {
+    const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(projectId)}/docker/start`, {
+      method: 'POST'
+    })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  stopDocker: async (projectId: string): Promise<void> => {
+    const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(projectId)}/docker/stop`, {
+      method: 'POST'
+    })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+  },
+
+  restartDocker: async (projectId: string): Promise<DockerStatusResponse> => {
+    const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(projectId)}/docker/restart`, {
+      method: 'POST'
+    })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  getDockerStatus: async (projectId: string): Promise<DockerStatusResponse> => {
+    const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(projectId)}/docker/status`)
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  }
+}

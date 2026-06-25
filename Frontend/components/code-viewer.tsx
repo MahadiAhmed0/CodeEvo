@@ -13,9 +13,12 @@ import {
   CheckCircle2,
   GitBranch,
   AlertCircle,
-  Loader2
+  Loader2,
+  Square,
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react'
-import { projectCodeApi } from '@/lib/api'
+import { projectCodeApi, dockerApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { useDiagramStore } from '@/lib/store'
 import { useAgentStore } from '@/lib/agent-store'
@@ -84,7 +87,7 @@ const FileTreeItem = ({ item, level = 0, onSelectFile, activeFile }: any) => {
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
-  const { setShowProjectSettings } = useDiagramStore()
+  const { setShowProjectSettings, dockerStatus, setDockerStatus, dockerLogs, setDockerLogs, previewUrl, setPreviewUrl } = useDiagramStore()
 
   // State: backend tree, loading, and whether backend has files
   const [backendTree, setBackendTree] = useState<Record<string, any> | null>(null)
@@ -140,7 +143,41 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
   // Load backend code files when the viewer mounts
   useEffect(() => {
     loadTree(true)
+    
+    // Check initial docker status
+    if (projectId) {
+      dockerApi.getDockerStatus(projectId).then(res => {
+        setDockerStatus(res.status)
+        if (res.previewUrl) setPreviewUrl(res.previewUrl)
+      }).catch(console.error)
+    }
   }, [projectId])
+
+  // Subscribe to Docker logs via WebSocket
+  useEffect(() => {
+    if (!projectId) return
+    const { stompClient } = useAgentStore.getState()
+    if (!stompClient || !stompClient.connected) return
+
+    const subId = stompClient.subscribeRaw(`/topic/project/${projectId}/docker-logs`, (msg) => {
+      setDockerLogs(prev => {
+        const newLogs = [...prev, msg.body]
+        // keep last 500 lines to prevent memory issues
+        if (newLogs.length > 500) return newLogs.slice(newLogs.length - 500)
+        return newLogs
+      })
+      
+      if (msg.body.includes('[SYSTEM] Container started successfully')) {
+        setDockerStatus('RUNNING')
+      }
+      if (msg.body.includes('network codeevo-proxy-net declared as external, but could not be found')) {
+        setDockerStatus('FAILED')
+        toast.error('Proxy network missing! Please run the Traefik proxy.')
+      }
+    })
+
+    return () => stompClient.unsubscribe(subId)
+  }, [projectId, useAgentStore.getState().isConnected])
 
   // Auto-refresh whenever the agent creates/edits a file or finishes a task
   useEffect(() => {
@@ -176,14 +213,48 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
     }
   }, [fileTree, activeFile])
 
-  // Mock terminal logs
-  const terminalLogs = [
-    "[10:00:01 AM] Starting UserService on port 8080...",
-    "[10:00:02 AM] Starting OrderService on port 8081...",
-    "[10:00:05 AM] ERROR: Connection to PaymentService (port 9000) failed. Connection refused.",
-    "[10:00:08 AM] WARN: OrderService DB URI not found, using fallback in-memory store.",
-    "[10:00:10 AM] SUCCESS: All services up and running."
-  ]
+  const handlePlay = async () => {
+    if (!projectId) return
+    setDockerLogs([]) // Clear previous logs
+    setActiveTab('terminal')
+    setDockerStatus('BUILDING')
+    try {
+      const res = await dockerApi.startDocker(projectId)
+      setDockerStatus(res.status)
+      if (res.previewUrl) setPreviewUrl(res.previewUrl)
+      toast.success('Container starting...')
+    } catch (err: any) {
+      setDockerStatus('FAILED')
+      toast.error(err.message || 'Failed to start sandbox')
+    }
+  }
+
+  const handleStop = async () => {
+    if (!projectId) return
+    try {
+      await dockerApi.stopDocker(projectId)
+      setDockerStatus('STOPPED')
+      setDockerLogs(prev => [...prev, '[SYSTEM] Container stopped by user.'])
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to stop sandbox')
+    }
+  }
+
+  const handleRestart = async () => {
+    if (!projectId) return
+    setDockerLogs([])
+    setActiveTab('terminal')
+    setDockerStatus('BUILDING')
+    try {
+      const res = await dockerApi.restartDocker(projectId)
+      setDockerStatus(res.status)
+      if (res.previewUrl) setPreviewUrl(res.previewUrl)
+      toast.success('Container restarting...')
+    } catch (err: any) {
+      setDockerStatus('FAILED')
+      toast.error(err.message || 'Failed to restart sandbox')
+    }
+  }
 
   const problems = [
     { id: 'ERR-USER-01', type: 'error', message: 'Connection to PaymentService (port 9000) failed. Connection refused.', file: 'UserService/main.go', line: 42 },
@@ -268,8 +339,22 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
           )}
         </div>
         <div className="flex items-center gap-3">
-          <Play size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300" />
-          <Settings onClick={() => setShowProjectSettings(true)} size={14} className="text-gray-400 cursor-pointer hover:text-gray-200" />
+          {dockerStatus === 'STOPPED' || dockerStatus === 'FAILED' ? (
+            <Play onClick={handlePlay} size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" title="Start Sandbox" />
+          ) : dockerStatus === 'BUILDING' ? (
+            <Loader2 size={14} className="text-emerald-400 animate-spin" title="Starting..." />
+          ) : (
+            <>
+              <Square onClick={handleStop} size={13} className="text-red-400 cursor-pointer hover:text-red-300 transition-colors" fill="currentColor" title="Stop Sandbox" />
+              <RefreshCw onClick={handleRestart} size={13} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" title="Restart Sandbox" />
+              {previewUrl && (
+                <a href={previewUrl} target="_blank" rel="noreferrer" title="Open Preview URL">
+                  <ExternalLink size={13} className="text-blue-400 hover:text-blue-300 transition-colors cursor-pointer" />
+                </a>
+              )}
+            </>
+          )}
+          <Settings onClick={() => setShowProjectSettings(true)} size={14} className="text-gray-400 cursor-pointer hover:text-gray-200 ml-1" />
         </div>
       </div>
 
@@ -357,17 +442,23 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
         </div>
         <div className="flex-1 p-3 overflow-y-auto text-[12px] text-gray-400 font-mono space-y-1">
           {activeTab === 'terminal' && (
-            <div className="space-y-1">
-              {terminalLogs.map((log, index) => (
-                <div key={index} className={`flex items-start gap-2 ${log.includes('ERROR') ? 'text-red-400' : log.includes('WARN') ? 'text-orange-400' : log.includes('SUCCESS') ? 'text-emerald-400' : 'text-gray-400'}`}>
-                  <span>{log}</span>
+            <div className="space-y-1 pb-4">
+              {dockerLogs.length === 0 && dockerStatus === 'STOPPED' ? (
+                <div className="text-gray-500 italic">Click Play to start the Docker sandbox...</div>
+              ) : (
+                dockerLogs.map((log, index) => (
+                  <div key={index} className={`flex items-start gap-2 ${log.includes('ERROR') || log.includes('Exception') || log.includes('failed') ? 'text-red-400' : log.includes('WARN') ? 'text-orange-400' : log.includes('SYSTEM') || log.includes('SUCCESS') ? 'text-emerald-400' : 'text-gray-400'}`}>
+                    <span>{log}</span>
+                  </div>
+                ))
+              )}
+              {dockerStatus === 'BUILDING' || dockerStatus === 'RUNNING' ? (
+                <div className="flex items-start gap-2 mt-2 text-gray-300">
+                  <span className="text-emerald-500">➜</span>
+                  <span>/workspace</span>
+                  <span className="animate-pulse">_</span>
                 </div>
-              ))}
-              <div className="flex items-start gap-2 mt-2 text-gray-300">
-                <span className="text-emerald-500">➜</span>
-                <span>/workspace</span>
-                <span className="animate-pulse">_</span>
-              </div>
+              ) : null}
             </div>
           )}
 

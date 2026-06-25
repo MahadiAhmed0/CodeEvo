@@ -117,6 +117,13 @@ interface DiagramStore {
   projectSettings: ProjectSettings
   showProjectSettings: boolean
   
+  dockerStatus: 'BUILDING' | 'RUNNING' | 'STOPPED' | 'FAILED'
+  dockerLogs: string[]
+  previewUrl: string | null
+  
+  setDockerStatus: (status: 'BUILDING' | 'RUNNING' | 'STOPPED' | 'FAILED') => void
+  setDockerLogs: (logs: string[] | ((prev: string[]) => string[])) => void
+  setPreviewUrl: (url: string | null) => void
   setNodes: (nodes: Node[]) => void
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void
   addNode: (node: Node) => void
@@ -164,6 +171,16 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
     aiApiKeys: {}
   },
   showProjectSettings: false,
+
+  dockerStatus: 'STOPPED',
+  dockerLogs: [],
+  previewUrl: null,
+
+  setDockerStatus: (dockerStatus) => set({ dockerStatus }),
+  setDockerLogs: (logs) => set((state) => ({
+    dockerLogs: typeof logs === 'function' ? logs(state.dockerLogs) : logs
+  })),
+  setPreviewUrl: (previewUrl) => set({ previewUrl }),
 
   setNodes: (nodes) => set({ nodes }),
   updateNodePosition: (nodeId, position) =>

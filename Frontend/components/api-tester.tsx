@@ -24,12 +24,19 @@ import {
   Plus,
   Trash2,
   X,
+  Loader2,
+  Square,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Node } from 'reactflow'
+import { dockerApi } from '@/lib/api'
+import { toast } from 'sonner'
 
 interface APITesterProps {
   nodes: Node[]
+  projectId?: string
 }
 
 interface RequestHistoryEntry {
@@ -51,11 +58,14 @@ const methodColors: Record<string, { text: string; bg: string; border: string; b
 
 import { useDiagramStore } from '@/lib/store'
 
-export function APITester({ nodes }: APITesterProps) {
-  const { setShowProjectSettings } = useDiagramStore()
-  const gatewayNodes = nodes.filter((n) => n.data.type === 'api' && n.data.gatewayConfig)
+export function APITester({ nodes, projectId }: APITesterProps) {
+  const { setShowProjectSettings, dockerStatus, setDockerStatus, dockerLogs, setDockerLogs, previewUrl, setPreviewUrl } = useDiagramStore()
+  const serviceNodes = nodes.filter((n) => 
+    (n.data.type === 'api' && n.data.gatewayConfig?.routes?.length) || 
+    (n.data.type === 'service' && n.data.endpoints?.length)
+  )
   const [selectedNodeId, setSelectedNodeId] = useState<string>(
-    gatewayNodes[0]?.id || ''
+    serviceNodes[0]?.id || ''
   )
   const [method, setMethod] = useState('GET')
   const [endpoint, setEndpoint] = useState('/api/health')
@@ -68,7 +78,11 @@ export function APITester({ nodes }: APITesterProps) {
   const [responseTab, setResponseTab] = useState<'body' | 'headers'>('body')
   const [history, setHistory] = useState<RequestHistoryEntry[]>([])
   const [expandedServices, setExpandedServices] = useState<Record<string, boolean>>({})
-  const [bottomTab, setBottomTab] = useState<'history' | 'console'>('history')
+  
+  // Test Runner State
+  const [bottomTab, setBottomTab] = useState<'history' | 'console' | 'suite'>('history')
+  const [testSuiteResults, setTestSuiteResults] = useState<any[]>([])
+  const [isTestRunnerActive, setIsTestRunnerActive] = useState(false)
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
 
@@ -138,6 +152,125 @@ export function APITester({ nodes }: APITesterProps) {
     setLoading(false)
   }
 
+  const handlePlay = async () => {
+    if (!projectId) return
+    setDockerLogs([]) // Clear previous logs
+    setDockerStatus('BUILDING')
+    try {
+      const res = await dockerApi.startDocker(projectId)
+      setDockerStatus(res.status)
+      if (res.previewUrl) setPreviewUrl(res.previewUrl)
+      toast.success('Container starting...')
+    } catch (err: any) {
+      setDockerStatus('FAILED')
+      toast.error(err.message || 'Failed to start sandbox')
+    }
+  }
+
+  const handleStop = async () => {
+    if (!projectId) return
+    try {
+      await dockerApi.stopDocker(projectId)
+      setDockerStatus('STOPPED')
+      setDockerLogs(prev => [...prev, '[SYSTEM] Container stopped by user.'])
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to stop sandbox')
+    }
+  }
+
+  const handleRestart = async () => {
+    if (!projectId) return
+    setDockerLogs([])
+    setDockerStatus('BUILDING')
+    try {
+      const res = await dockerApi.restartDocker(projectId)
+      setDockerStatus(res.status)
+      if (res.previewUrl) setPreviewUrl(res.previewUrl)
+      toast.success('Container restarting...')
+    } catch (err: any) {
+      setDockerStatus('FAILED')
+      toast.error(err.message || 'Failed to restart sandbox')
+    }
+  }
+
+  const generateMockPayload = (endpoint: string) => {
+    const p = endpoint.toLowerCase()
+    if (p.includes('user')) return { name: "Test User", email: "test@example.com", password: "password123" }
+    if (p.includes('product')) return { name: "Test Product", price: 99.99, description: "A test product" }
+    if (p.includes('order')) return { productId: 1, quantity: 2, status: "PENDING" }
+    return { data: "test payload" }
+  }
+
+  const handleRunAllTests = async () => {
+    const allTests: any[] = []
+    serviceNodes.forEach(node => {
+      const routes = node.data.type === 'api' && node.data.gatewayConfig
+        ? (node.data.gatewayConfig.routes || []).map((r: any) => ({
+            method: (r.methods && r.methods[0] !== 'ALL') ? r.methods[0] : 'GET',
+            path: r.pathPrefix
+          }))
+        : (node.data.endpoints || []).map((e: any) => ({
+            method: e.method,
+            path: e.path
+          }))
+      
+      routes.forEach((r: any) => {
+        allTests.push({
+          id: crypto.randomUUID(),
+          endpoint: r.path,
+          method: r.method,
+          running: false,
+          nodePort: node.data.port || 8080
+        })
+      })
+    })
+
+    if (allTests.length === 0) return
+    setTestSuiteResults(allTests)
+    setBottomTab('suite')
+    setIsTestRunnerActive(true)
+
+    for (let i = 0; i < allTests.length; i++) {
+      const test = allTests[i]
+      setTestSuiteResults(prev => prev.map((t, idx) => idx === i ? { ...t, running: true } : t))
+      
+      let mockBody = undefined
+      if (test.method === 'POST' || test.method === 'PUT') {
+        mockBody = generateMockPayload(test.endpoint)
+      }
+
+      const startTime = Date.now()
+      try {
+        const url = `http://localhost:${test.nodePort}${test.endpoint.startsWith('/') ? test.endpoint : '/' + test.endpoint}`
+        const res = await fetch(url, {
+          method: test.method,
+          headers: { 'Content-Type': 'application/json' },
+          body: mockBody ? JSON.stringify(mockBody) : undefined
+        })
+        const duration = Date.now() - startTime
+        const passed = res.status >= 200 && res.status < 400
+
+        setTestSuiteResults(prev => prev.map((t, idx) => idx === i ? { 
+          ...t, 
+          running: false, 
+          status: res.status, 
+          passed,
+          duration: `${duration}ms`
+        } : t))
+      } catch (err) {
+        const duration = Date.now() - startTime
+        setTestSuiteResults(prev => prev.map((t, idx) => idx === i ? { 
+          ...t, 
+          running: false, 
+          status: 'ERR', 
+          passed: false,
+          duration: `${duration}ms`
+        } : t))
+      }
+    }
+    setIsTestRunnerActive(false)
+  }
+
   const copyResponse = () => {
     navigator.clipboard.writeText(JSON.stringify(response?.body || response?.error, null, 2))
     setCopied(true)
@@ -201,8 +334,22 @@ export function APITester({ nodes }: APITesterProps) {
               )}
             </div>
           )}
-          <Play size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300" onClick={handleSendRequest} />
-          <Settings onClick={() => setShowProjectSettings(true)} size={14} className="text-gray-400 cursor-pointer hover:text-gray-200" />
+          {dockerStatus === 'STOPPED' || dockerStatus === 'FAILED' ? (
+            <Play onClick={handlePlay} size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" title="Start Sandbox" />
+          ) : dockerStatus === 'BUILDING' ? (
+            <Loader2 size={14} className="text-emerald-400 animate-spin" title="Starting..." />
+          ) : (
+            <>
+              <Square onClick={handleStop} size={13} className="text-red-400 cursor-pointer hover:text-red-300 transition-colors" fill="currentColor" title="Stop Sandbox" />
+              <RefreshCw onClick={handleRestart} size={13} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" title="Restart Sandbox" />
+              {previewUrl && (
+                <a href={previewUrl} target="_blank" rel="noreferrer" title="Open Preview URL">
+                  <ExternalLink size={13} className="text-blue-400 hover:text-blue-300 transition-colors cursor-pointer" />
+                </a>
+              )}
+            </>
+          )}
+          <Settings onClick={() => setShowProjectSettings(true)} size={14} className="text-gray-400 cursor-pointer hover:text-gray-200 ml-1" />
         </div>
       </div>
 
@@ -222,10 +369,10 @@ export function APITester({ nodes }: APITesterProps) {
                 onChange={(e) => setSelectedNodeId(e.target.value)}
                 className="w-full appearance-none pl-7 pr-8 py-1.5 bg-white/[0.04] border border-white/[0.08] hover:border-white/[0.12] rounded-lg text-[11px] font-medium text-white/70 outline-none focus:border-purple-500/40 transition-all cursor-pointer"
               >
-                <option value="" disabled className="bg-[#0d1220]">Select a gateway...</option>
-                {gatewayNodes.map((n) => (
+                <option value="" disabled className="bg-[#0d1220]">Select a service...</option>
+                {serviceNodes.map((n) => (
                   <option key={n.id} value={n.id} className="bg-[#0d1220] text-white">
-                    {n.data.name || 'Unnamed Gateway'} (:{n.data.port || 8080})
+                    {n.data.name || 'Unnamed Service'} (:{n.data.port || 8080})
                   </option>
                 ))}
               </select>
@@ -236,9 +383,22 @@ export function APITester({ nodes }: APITesterProps) {
 
           {/* Routes tree */}
           <div className="flex-1 overflow-y-auto py-1">
-            {gatewayNodes.map((gw) => {
+            {serviceNodes.map((gw) => {
               const isExpanded = expandedServices[gw.id] !== false
-              const routes = gw.data.gatewayConfig?.routes || []
+              const routes = gw.data.type === 'api' && gw.data.gatewayConfig
+                ? (gw.data.gatewayConfig.routes || []).map((r: any) => ({
+                    method: (r.methods && r.methods.length > 0 && r.methods[0] !== 'ALL') ? r.methods[0] : 'GET',
+                    path: r.pathPrefix,
+                    target: `${r.targetService}:${r.targetPort}`
+                  }))
+                : (gw.data.endpoints || []).map((e: any) => ({
+                    method: e.method,
+                    path: e.path,
+                    target: 'Internal'
+                  }))
+
+              if (routes.length === 0) return null
+
               return (
                 <div key={gw.id}>
                   <div
@@ -253,10 +413,8 @@ export function APITester({ nodes }: APITesterProps) {
                     <span className="text-[10px] text-white/20 font-mono">:{gw.data.port}</span>
                   </div>
                   {isExpanded && routes.map((route: any, idx: number) => {
-                    const path = route.pathPrefix
-                    const routeMethod = route.methods && route.methods.length > 0 && route.methods[0] !== 'ALL' ? route.methods[0] : 'GET'
-                    const isActive = selectedNodeId === gw.id && endpoint === path && method === routeMethod
-                    const mc = methodColors[routeMethod] || methodColors.GET
+                    const isActive = selectedNodeId === gw.id && endpoint === route.path && method === route.method
+                    const mc = methodColors[route.method] || methodColors.GET
                     return (
                       <div
                         key={idx}
@@ -266,15 +424,19 @@ export function APITester({ nodes }: APITesterProps) {
                             : 'text-gray-400 hover:text-white hover:bg-white/[0.04]'
                         }`}
                         style={{ paddingLeft: '28px' }}
-                        onClick={() => selectRoute(gw.id, route)}
+                        onClick={() => {
+                          setSelectedNodeId(gw.id)
+                          setEndpoint(route.path)
+                          setMethod(route.method)
+                        }}
                       >
                         <div className="flex items-center gap-2">
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${mc.badge} shrink-0`}>
-                            {routeMethod}
+                            {route.method}
                           </span>
-                          <span className="truncate font-mono text-[11px]">{path}</span>
+                          <span className="truncate font-mono text-[11px]">{route.path}</span>
                         </div>
-                        <span className="text-[9px] text-white/30 truncate pl-8">→ {route.targetService}:{route.targetPort}</span>
+                        <span className="text-[9px] text-white/30 truncate pl-8">→ {route.target}</span>
                       </div>
                     )
                   })}
@@ -287,7 +449,7 @@ export function APITester({ nodes }: APITesterProps) {
           <div className="p-3 border-t border-white/[0.06]">
             <div className="flex items-center gap-2 text-[10px] text-white/20">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60" />
-              {gatewayNodes.length} gateways · {gatewayNodes.reduce((acc, g) => acc + (g.data.gatewayConfig?.routes?.length || 0), 0)} routes
+              {serviceNodes.length} services · {serviceNodes.reduce((acc, g) => acc + ((g.data.type === 'api' ? g.data.gatewayConfig?.routes?.length : g.data.endpoints?.length) || 0), 0)} endpoints
             </div>
           </div>
         </div>
@@ -328,21 +490,37 @@ export function APITester({ nodes }: APITesterProps) {
                 />
               </div>
 
-              {/* Send button */}
-              <button
-                onClick={handleSendRequest}
-                disabled={loading || !selectedNode}
-                className="shrink-0 px-5 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] hover:from-[#7b4cf6] hover:to-[#d25cf2] text-white rounded-lg text-[12px] font-semibold flex items-center gap-2 hover:shadow-[0_0_20px_rgba(108,59,245,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
-              >
-                {loading ? (
-                  <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-                    <Zap className="w-3.5 h-3.5" />
-                  </motion.div>
-                ) : (
-                  <Send className="w-3.5 h-3.5" />
-                )}
-                {loading ? 'Sending...' : 'Send'}
-              </button>
+              {/* Actions */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSendRequest}
+                  disabled={loading || !selectedNode}
+                  className="shrink-0 px-4 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-lg text-[12px] font-semibold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/[0.08]"
+                >
+                  {loading ? (
+                    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+                      <Zap className="w-3.5 h-3.5" />
+                    </motion.div>
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  Send
+                </button>
+                <button
+                  onClick={handleRunAllTests}
+                  disabled={isTestRunnerActive || serviceNodes.length === 0}
+                  className="shrink-0 px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] hover:from-[#7b4cf6] hover:to-[#d25cf2] text-white rounded-lg text-[12px] font-semibold flex items-center gap-2 hover:shadow-[0_0_20px_rgba(108,59,245,0.4)] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                >
+                  {isTestRunnerActive ? (
+                    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+                      <Loader2 className="w-3.5 h-3.5" />
+                    </motion.div>
+                  ) : (
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                  )}
+                  Auto-Test All
+                </button>
+              </div>
             </div>
           </div>
 
@@ -594,6 +772,21 @@ export function APITester({ nodes }: APITesterProps) {
           >
             Console
           </button>
+          <button
+            onClick={() => setBottomTab('suite')}
+            className={`transition-all flex items-center gap-1.5 ${
+              bottomTab === 'suite'
+                ? 'text-purple-400 border-b-2 border-purple-400 pb-2 translate-y-[1px]'
+                : 'text-gray-500 hover:text-gray-300 cursor-pointer'
+            }`}
+          >
+            Test Suite
+            {testSuiteResults.length > 0 && (
+              <span className="bg-white/10 text-white/60 px-1.5 py-0.5 rounded-full text-[9px] font-mono leading-none">
+                {testSuiteResults.filter(t => t.passed).length}/{testSuiteResults.length}
+              </span>
+            )}
+          </button>
         </div>
 
         <div className="flex-1 p-3 overflow-y-auto text-[12px] text-gray-400 font-mono space-y-1">
@@ -627,7 +820,7 @@ export function APITester({ nodes }: APITesterProps) {
                 <span>API Workspace initialized. Send a request to begin recording history.</span>
               </div>
             )
-          ) : (
+          ) : bottomTab === 'console' ? (
             <>
               <div className="flex items-start gap-2">
                 <span className="text-blue-400">[INFO]</span>
@@ -637,14 +830,50 @@ export function APITester({ nodes }: APITesterProps) {
               <div className="flex items-start gap-2">
                 <span className="text-emerald-400"><CheckCircle2 size={14} /></span>
                 <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-                <span className="text-emerald-400">{nodes.filter(n => n.data.type === 'service').length} services detected in architecture.</span>
+                <span className="text-emerald-400">{serviceNodes.length} services detected with endpoints.</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="text-blue-400">[SYSTEM]</span>
                 <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-                <span>Ready for testing. Select an endpoint from the explorer to begin.</span>
+                <span>Ready for testing. Select an endpoint or run Auto-Test All.</span>
               </div>
             </>
+          ) : (
+            <div className="space-y-1">
+              {testSuiteResults.length > 0 ? (
+                testSuiteResults.map((test) => (
+                  <div key={test.id} className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+                    {test.running ? (
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+                        <Loader2 className="w-3.5 h-3.5 text-blue-400" />
+                      </motion.div>
+                    ) : test.passed ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <XCircle className="w-3.5 h-3.5 text-red-400" />
+                    )}
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                      methodColors[test.method]?.badge || methodColors.GET.badge
+                    }`}>
+                      {test.method}
+                    </span>
+                    <span className="text-white/70 font-mono text-[11px] flex-1">{test.endpoint}</span>
+                    {test.status && (
+                      <span className={`text-[11px] font-bold ${getStatusColor(test.status)}`}>{test.status}</span>
+                    )}
+                    {test.duration && (
+                      <span className="text-white/30 text-[10px] font-mono">{test.duration}</span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-white/30">
+                  <Play className="w-8 h-8 mb-2 opacity-20" />
+                  <p>No tests run yet.</p>
+                  <p className="text-[11px]">Click "Auto-Test All" to begin automated API testing.</p>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

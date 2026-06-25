@@ -67,6 +67,18 @@ public class WebSocketGateway {
     }
 
     /**
+     * Emit a raw string log line to the Docker logs topic for a project sandbox.
+     */
+    public void emitDockerLog(String projectId, String logLine) {
+        try {
+            String dest = "/topic/project/" + projectId + "/docker-logs";
+            messagingTemplate.convertAndSend(dest, logLine);
+        } catch (Exception e) {
+            log.error("Failed to emit docker log to project {}: {}", projectId, e.getMessage());
+        }
+    }
+
+    /**
      * @deprecated Use emit() instead — errors are now sent to the same events topic.
      */
     public void emitError(String userId, AgentEvent event) {

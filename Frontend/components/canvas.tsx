@@ -634,7 +634,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
           <CodeViewer key="code-view" nodes={nodes} edges={edges} projectId={projectId} />
         )}
         {viewMode === 'test' && (
-          <APITester key="test-view" nodes={nodes} />
+          <APITester key="test-view" nodes={nodes} projectId={projectId} />
         )}
       </AnimatePresence>
 
