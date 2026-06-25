@@ -92,7 +92,7 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
   const [hasBackendFiles, setHasBackendFiles] = useState(false)
 
   const { events } = useAgentStore()
-  const lastEvent = events[events.length - 1]
+  const processedIndexRef = React.useRef<number>(0)
 
   const loadTree = (isInitial = false) => {
     if (!projectId) return
@@ -144,23 +144,39 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
 
   // Auto-refresh whenever the agent creates/edits a file or finishes a task
   useEffect(() => {
-    if (lastEvent?.type === 'DIFF_READY') {
-      const payload = lastEvent.payload as any
-      // 1. Instantly use the push response payload to show the code (SSE style)
-      setActiveFile((prevActive) => {
-        const eventFileName = payload.filePath.split('/').pop()
-        if (prevActive && prevActive.name === eventFileName) {
-          return { ...prevActive, content: payload.modifiedContent }
-        }
-        // If no file is open and this is the first file, or to auto-switch to newly edited file:
-        return { name: eventFileName, content: payload.modifiedContent, type: 'file' }
-      })
+    if (!events.length) {
+      processedIndexRef.current = 0
+      return
+    }
+
+    const newEvents = events.slice(processedIndexRef.current)
+    processedIndexRef.current = events.length
+
+    let shouldLoadTree = false
+
+    newEvents.forEach(event => {
+      if (event.type === 'DIFF_READY') {
+        const payload = event.payload as any
+        // 1. Instantly use the push response payload to show the code (SSE style)
+        setActiveFile((prevActive) => {
+          const eventFileName = payload.filePath.split('/').pop()
+          if (prevActive && prevActive.name === eventFileName) {
+            return { ...prevActive, content: payload.modifiedContent }
+          }
+          // If no file is open and this is the first file, or to auto-switch to newly edited file:
+          return { name: eventFileName, content: payload.modifiedContent, type: 'file' }
+        })
+        shouldLoadTree = true
+      } else if (event.type === 'TASK_COMPLETE') {
+        shouldLoadTree = true
+      }
+    })
+
+    if (shouldLoadTree) {
       // 2. Silently pull the tree in the background just to update the sidebar folder structure
       loadTree(false)
-    } else if (lastEvent?.type === 'TASK_COMPLETE') {
-      loadTree(false)
     }
-  }, [lastEvent])
+  }, [events])
 
   // Use backend tree
   const fileTree = backendTree || {}
@@ -190,24 +206,15 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
     { id: 'WARN-ORD-01', type: 'warning', message: 'OrderService DB URI not found, using fallback in-memory store.', file: 'OrderService/application.yml', line: 15 }
   ]
 
-  // Strips LLM-injected Tailwind CSS artifacts from code content.
-  // Handles ALL variants: full "text-pink-400">, partial 400">, middle pink-400">
+  // Decodes HTML entities that the LLM may have injected (e.g. &lt; -> <).
+  // Does NOT strip XML or angle-bracket tags so pom.xml and generics render correctly.
   const sanitizeCode = (content: string): string => {
-    // 1. Decode HTML entities first (so &quot;&gt; becomes ">)
-    let decoded = content
+    return content
       .replace(/&lt;/g, '<')
       .replace(/&gt;/g, '>')
       .replace(/&amp;/g, '&')
       .replace(/&quot;/g, '"')
-
-    // 2. Remove full HTML tags: <span class="text-pink-400">word</span>
-    decoded = decoded.replace(/<[^>]*>/g, '')
-
-    // 3. Remove ANY fragment ending in digits+"> — this catches:
-    //   "text-pink-400">   400">   pink-400">   "text-gray-500">   500">
-    decoded = decoded.replace(/(?:"[a-zA-Z0-9_-]*)?[a-zA-Z_-]*\d{3}">/g, '')
-
-    return decoded
+      .replace(/&#39;/g, "'")
   }
 
   // Syntax highlighting (HTML-safe)
