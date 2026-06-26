@@ -123,6 +123,10 @@ public class DockerExecutionService {
             Path filePath = projectDir.resolve(file.getFilePath());
             Files.createDirectories(filePath.getParent());
             Files.writeString(filePath, file.getContent());
+
+            if (file.getFilePath().equals("Dockerfile") || file.getFilePath().endsWith("/Dockerfile")) {
+                normalizeDockerfileBaseImages(projectId, filePath);
+            }
             
             if (file.getFilePath().equals("docker-compose.yml")) {
                 composeFile = file;
@@ -134,6 +138,25 @@ public class DockerExecutionService {
         } else {
             emitLog(projectId, "[WARNING] No docker-compose.yml found in project files.");
         }
+    }
+
+    private void normalizeDockerfileBaseImages(String projectId, Path dockerfilePath) throws IOException {
+        String content = Files.readString(dockerfilePath);
+        String normalized = content
+            .replaceAll("(?im)^FROM\\s+openjdk:17-jdk-slim\\s+AS\\s+(\\S+)", "FROM maven:3.9-eclipse-temurin-17 AS $1")
+            .replace("FROM openjdk:17-jdk-slim", "FROM eclipse-temurin:17-jdk-jammy")
+            .replace("FROM openjdk:17-jre-slim", "FROM eclipse-temurin:17-jre-jammy")
+            .replace("FROM openjdk:17", "FROM eclipse-temurin:17-jdk-jammy");
+
+        if (!normalized.equals(content)) {
+            Files.writeString(dockerfilePath, normalized);
+            emitLog(projectId, "[WARNING] Replaced deprecated Docker base image in " + projectDirRelativeName(dockerfilePath) + ".");
+        }
+    }
+
+    private String projectDirRelativeName(Path path) {
+        Path fileName = path.getFileName();
+        return fileName != null ? fileName.toString() : path.toString();
     }
 
     @SuppressWarnings("unchecked")
