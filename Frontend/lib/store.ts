@@ -21,13 +21,12 @@ export interface GatewayRoute {
   id: string
   pathPrefix: string
   targetService: string
-  targetPort: number
   methods: string[]
   stripPrefix: boolean
 }
 
 export interface GatewayConfig {
-  platform: 'nginx' | 'express-proxy' | 'spring-cloud-gateway'
+  language: 'spring-boot' | 'node.js' | 'go'
   routes: GatewayRoute[]
   auth: {
     enabled: boolean
@@ -60,7 +59,6 @@ export interface Node {
   type: 'service' | 'database' | 'queue' | 'api'
   name: string
   position: { x: number; y: number }
-  language?: string
   port?: number
   engine?: string
   provider?: string
