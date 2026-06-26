@@ -47,7 +47,7 @@ const chartData = [
 
 const recentActivity = [
   { id: 1, action: 'Added PaymentService', project: 'E-Commerce System', time: '2 min ago' },
-  { id: 2, action: 'Committed to main', project: 'API Gateway', time: '15 min ago' },
+  { id: 2, action: 'Committed to main', project: 'Main Gateway', time: '15 min ago' },
   { id: 3, action: 'Agent run completed', project: 'Notification System', time: '1 hour ago' },
   { id: 4, action: 'Database connected', project: 'E-Commerce System', time: '2 hours ago' },
 ]
