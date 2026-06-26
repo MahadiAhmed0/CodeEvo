@@ -30,7 +30,7 @@ public class ToolRegistry {
                 List.of("query")),
 
             buildTool("delegate_to_visual_architect",
-                "Trigger ONLY when the user explicitly wants to ADD a brand new architectural node (like a new microservice, database, message queue, or external API) to the canvas. " +
+                "Trigger ONLY when the user explicitly wants to ADD a brand new architectural node (like a new service domain, database, message queue, or external API) to the canvas. " +
                 "Do NOT use this if the node already exists on the canvas. If the user wants to generate code for a node that already exists, use delegate_to_coding_agent instead.",
                 Map.of(
                     "architecture_request", strProp("Technical description of the new architectural component(s)"),
@@ -44,7 +44,7 @@ public class ToolRegistry {
                 "If the user asks a question, use search_project_context to find the code and answer it yourself.",
                 Map.of(
                     "task_summary", strProp("Highly detailed, unambiguous description of what needs to be coded"),
-                    "target_files", arrayProp("Optional: List of absolute file paths that will likely be involved"),
+                    "target_files", arrayProp("Optional: List of relative project paths that will likely be involved"),
                     "acceptance_criteria", arrayProp("Optional: Verifiable conditions that must be true for task completion")
                 ),
                 List.of("task_summary")),
@@ -113,7 +113,7 @@ public class ToolRegistry {
             buildTool("view_file",
                 "Reads the full content of a specific file. MUST call this before replace_file_content.",
                 Map.of(
-                    "file_path", strProp("Absolute path to the file"),
+                    "file_path", strProp("Relative project path to the file, e.g. src/main/java/com/example/UserService.java"),
                     "start_line", strProp("Optional: start line to read from"),
                     "end_line", strProp("Optional: end line to read to")
                 ),
@@ -123,7 +123,7 @@ public class ToolRegistry {
                 "Replaces an EXACT block of code in a file. target_content must match EXACTLY including whitespace. " +
                 "NEVER use this to rewrite an entire file.",
                 Map.of(
-                    "file_path", strProp("Absolute path to the file"),
+                    "file_path", strProp("Relative project path to the file, e.g. src/main/java/com/example/UserService.java"),
                     "target_content", strProp("EXACT existing code block to find and replace"),
                     "replacement_content", strProp("New code block to insert"),
                     "change_description", strProp("One-sentence summary of the change")
@@ -145,13 +145,13 @@ public class ToolRegistry {
             buildTool("delete_file",
                 "Deletes a file. REQUIRES explicit user approval — always call ask_user first.",
                 Map.of(
-                    "file_path", strProp("Absolute path to the file"),
+                    "file_path", strProp("Relative project path to the file"),
                     "reason", strProp("Why this file is being deleted")
                 ),
                 List.of("file_path", "reason")),
 
             buildTool("run_maven_command",
-                "Executes a Maven command. ALWAYS run 'mvn compile' after modifying any Java file.",
+                "Executes a Maven command against the CodeEvo backend runtime, not the generated project sandbox. Prefer Docker sandbox verification for generated project code.",
                 Map.of(
                     "command", enumProp("Maven command", "mvn compile", "mvn test", "mvn clean compile", "mvn spring-boot:run"),
                     "timeout_seconds", strProp("Max execution time in seconds, e.g. '120'")
