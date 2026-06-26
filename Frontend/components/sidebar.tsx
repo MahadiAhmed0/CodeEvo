@@ -47,7 +47,7 @@ import {
 
 const nodeTypes = [
   { id: 'service', name: 'Service', description: 'Application logic & compute', icon: Server, color: '#6c3bf5', gradient: 'from-[#6c3bf5] to-[#8b5cf6]' },
-  { id: 'api', name: 'API Gateway', description: 'API routing & gateway', icon: Network, color: '#10b981', gradient: 'from-[#10b981] to-[#34d399]' },
+  { id: 'api', name: 'Main Gateway', description: 'Monolith entrypoint & routing', icon: Network, color: '#10b981', gradient: 'from-[#10b981] to-[#34d399]' },
   { id: 'database', name: 'Database', description: 'Data storage system', icon: Database, color: '#f59e0b', gradient: 'from-[#f59e0b] to-[#fbbf24]' },
   { id: 'queue', name: 'Queue', description: 'Message broker & streaming', icon: Layers, color: '#c74cf0', gradient: 'from-[#c74cf0] to-[#e879f9]' },
 ]
@@ -517,31 +517,6 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                         className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
                       />
                     </div>
-                    <div>
-                      <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Language</label>
-                      <Select 
-                        value={selectedNode.language || 'go'} 
-                        onValueChange={(val) => onUpdateNode?.(selectedNode.id, { language: val })}
-                      >
-                        <SelectTrigger className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border-white/[0.08] rounded-lg text-[13px] text-white/80 focus:ring-0 focus:ring-offset-0 focus:border-purple-500/30 transition-all duration-200">
-                          <SelectValue placeholder="Select language" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-[#0d1220] border-white/[0.08] text-white/80">
-                          <SelectItem value="go">Go</SelectItem>
-                          <SelectItem value="spring-boot">Spring Boot</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Port</label>
-                      <input
-                        type="number"
-                        value={selectedNode.port}
-                        onChange={(e) => onUpdateNode?.(selectedNode.id, { port: parseInt(e.target.value) || 0 })}
-                        className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border border-white/[0.08] rounded-lg text-[13px] text-white/80 outline-none focus:border-purple-500/30 focus:bg-white/[0.06] transition-all duration-200"
-                      />
-                    </div>
-
                     {/* Methods */}
                     <div>
                       <div className="flex items-center justify-between">
@@ -836,12 +811,13 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
 
                 {selectedNode.type === 'api' && (() => {
                   const gw = selectedNode.gatewayConfig || {
-                    platform: 'express-proxy',
+                    language: 'spring-boot',
                     routes: [],
                     auth: { enabled: false, type: 'none' },
                     rateLimit: { enabled: false, requestsPerMinute: 100 },
                     cors: { enabled: true, allowedOrigins: ['*'] },
                   }
+                  const gatewayLanguage = gw.language || (gw.platform === 'express-proxy' ? 'node.js' : 'spring-boot')
                   return (
                     <div className="space-y-4">
                       {/* Name */}
@@ -865,20 +841,23 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                         />
                       </div>
 
-                      {/* Platform */}
+                      {/* Language */}
                       <div>
-                        <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Platform</label>
+                        <label className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Language</label>
                         <Select
-                          value={gw.platform}
-                          onValueChange={(val) => onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...gw, platform: val } })}
+                          value={gatewayLanguage}
+                          onValueChange={(val) => {
+                            const { platform, ...nextGw } = gw
+                            onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...nextGw, language: val } })
+                          }}
                         >
                           <SelectTrigger className="w-full mt-1.5 px-3 py-2 bg-white/[0.04] border-white/[0.08] rounded-lg text-[13px] text-white/80 focus:ring-0 focus:ring-offset-0 focus:border-purple-500/30 transition-all duration-200">
-                            <SelectValue placeholder="Select platform" />
+                            <SelectValue placeholder="Select language" />
                           </SelectTrigger>
                           <SelectContent className="bg-[#0d1220] border-white/[0.08] text-white/80">
-                            <SelectItem value="express-proxy">Express Proxy</SelectItem>
-                            <SelectItem value="nginx">Nginx</SelectItem>
-                            <SelectItem value="spring-cloud-gateway">Spring Cloud Gateway</SelectItem>
+                            <SelectItem value="spring-boot">Spring Boot</SelectItem>
+                            <SelectItem value="node.js">Node.js</SelectItem>
+                            <SelectItem value="go">Go</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -893,7 +872,6 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                                 id: crypto.randomUUID(),
                                 pathPrefix: '/api/new',
                                 targetService: 'ServiceName',
-                                targetPort: 8080,
                                 methods: ['ALL'],
                                 stripPrefix: false,
                               }
@@ -936,34 +914,19 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
                                 />
                               </div>
 
-                              {/* Target service + port */}
-                              <div className="flex gap-2">
-                                <div className="flex-1">
-                                  <label className="text-[9px] text-white/20 uppercase">Target Service</label>
-                                  <input
-                                    value={route.targetService}
-                                    onChange={(e) => {
-                                      const newRoutes = [...gw.routes]
-                                      newRoutes[i] = { ...route, targetService: e.target.value }
-                                      onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...gw, routes: newRoutes } })
-                                    }}
-                                    className="w-full bg-transparent border border-white/[0.04] rounded px-2 py-1 text-[12px] text-white/60 outline-none focus:border-purple-500/30"
-                                    placeholder="UserService"
-                                  />
-                                </div>
-                                <div className="w-20">
-                                  <label className="text-[9px] text-white/20 uppercase">Port</label>
-                                  <input
-                                    type="number"
-                                    value={route.targetPort}
-                                    onChange={(e) => {
-                                      const newRoutes = [...gw.routes]
-                                      newRoutes[i] = { ...route, targetPort: parseInt(e.target.value) || 8080 }
-                                      onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...gw, routes: newRoutes } })
-                                    }}
-                                    className="w-full bg-transparent border border-white/[0.04] rounded px-2 py-1 text-[12px] text-white/60 font-mono outline-none focus:border-purple-500/30"
-                                  />
-                                </div>
+                              {/* Target service */}
+                              <div>
+                                <label className="text-[9px] text-white/20 uppercase">Target Service</label>
+                                <input
+                                  value={route.targetService}
+                                  onChange={(e) => {
+                                    const newRoutes = [...gw.routes]
+                                    newRoutes[i] = { ...route, targetService: e.target.value }
+                                    onUpdateNode?.(selectedNode.id, { gatewayConfig: { ...gw, routes: newRoutes } })
+                                  }}
+                                  className="w-full bg-transparent border border-white/[0.04] rounded px-2 py-1 text-[12px] text-white/60 outline-none focus:border-purple-500/30"
+                                  placeholder="UserService"
+                                />
                               </div>
 
                               {/* Methods */}
