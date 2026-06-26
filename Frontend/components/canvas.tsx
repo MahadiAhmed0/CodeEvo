@@ -43,6 +43,52 @@ const edgeTypes = {
   custom: CustomEdge,
 }
 
+const MONOLITH_PORT = 8080
+
+const migrateGatewayLanguage = (gatewayConfig: any) => {
+  if (!gatewayConfig) return {
+    language: 'spring-boot' as const,
+    routes: [],
+    auth: { enabled: false, type: 'none' as const },
+    rateLimit: { enabled: false, requestsPerMinute: 100 },
+    cors: { enabled: true, allowedOrigins: ['*'] },
+  }
+
+  const legacyPlatform = gatewayConfig.platform
+  const language = gatewayConfig.language
+    || (legacyPlatform === 'express-proxy' ? 'node.js' : legacyPlatform === 'spring-cloud-gateway' ? 'spring-boot' : 'spring-boot')
+
+  return {
+    ...gatewayConfig,
+    language,
+    routes: (gatewayConfig.routes || []).map(({ targetPort, ...route }: any) => route),
+    platform: undefined,
+  }
+}
+
+const normalizeNodeData = (data: any) => {
+  if (data?.type === 'service') {
+    const { language, port, ...serviceData } = data
+    return serviceData
+  }
+
+  if (data?.type === 'api') {
+    return {
+      ...data,
+      name: data.name || 'MainGateway',
+      port: data.port || MONOLITH_PORT,
+      gatewayConfig: migrateGatewayLanguage(data.gatewayConfig),
+    }
+  }
+
+  return data
+}
+
+const normalizeDiagramNode = (node: Node) => ({
+  ...node,
+  data: normalizeNodeData(node.data),
+})
+
 interface CanvasProps {
   selectedNode?: any
   setSelectedNode?: (node: any) => void
@@ -51,8 +97,8 @@ interface CanvasProps {
 
 export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }: CanvasProps) {
   const router = useRouter()
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>([])
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
   // 'idle' | 'saving' | 'saved' | 'error'
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -70,7 +116,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
     projectApi.getDiagram(projectId)
       .then((diagram) => {
         if (diagram && diagram.nodes?.length > 0) {
-          setNodes(diagram.nodes)
+          setNodes(diagram.nodes.map(normalizeDiagramNode))
           setEdges(diagram.edges ?? [])
           setIsLoading(false)
           setTimeout(() => { isFirstLoad.current = false }, 300)
@@ -199,7 +245,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
     setNodes(prev => {
       const existingIds = new Set(incomingNodes.map((n: any) => n.id))
       const kept = prev.filter(n => !existingIds.has(n.id))
-      return [...kept, ...incomingNodes]
+      return [...kept, ...incomingNodes.map(normalizeDiagramNode)]
     })
 
     setEdges(prev => {
@@ -252,8 +298,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         type: node.data.type,
         name: node.data.name,
         position: node.position,
-        language: node.data.language,
-        port: node.data.port,
+        port: node.data.type === 'api' ? node.data.port : undefined,
         engine: node.data.engine,
         provider: node.data.provider,
         methods: node.data.methods,
@@ -372,16 +417,14 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
       const nodeConfig = {
         service: {
           name: 'NewService',
-          language: 'node.js',
-          port: 8000 + nodes.length,
           methods: [{ name: 'handleRequest', description: 'Process incoming request', type: 'mutation' as const }],
           externalAPIs: [],
         },
         api: {
-          name: 'APIGateway',
-          port: 8080,
+          name: 'MainGateway',
+          port: MONOLITH_PORT,
           gatewayConfig: {
-            platform: 'express-proxy' as const,
+            language: 'spring-boot' as const,
             routes: [],
             auth: { enabled: false, type: 'none' as const },
             rateLimit: { enabled: false, requestsPerMinute: 100 },
@@ -420,16 +463,14 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
     const nodeConfig = {
       service: {
         name: 'NewService',
-        language: 'node.js',
-        port: 8000 + nodes.length,
         methods: [{ name: 'handleRequest', description: 'Process incoming request', type: 'mutation' as const }],
         externalAPIs: [],
       },
       api: {
-        name: 'APIGateway',
-        port: 8080,
+        name: 'MainGateway',
+        port: MONOLITH_PORT,
         gatewayConfig: {
-          platform: 'express-proxy' as const,
+          language: 'spring-boot' as const,
           routes: [],
           auth: { enabled: false, type: 'none' as const },
           rateLimit: { enabled: false, requestsPerMinute: 100 },
@@ -523,7 +564,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
           const content = ev.target?.result as string
           const parsed = JSON.parse(content)
           if (parsed.nodes && parsed.edges) {
-            setNodes(parsed.nodes)
+            setNodes(parsed.nodes.map(normalizeDiagramNode))
             setEdges(parsed.edges)
             toast.success('Diagram imported', {
               description: `${parsed.nodes.length} nodes, ${parsed.edges.length} edges loaded.`,
@@ -668,7 +709,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
                   { type: 'service' as const, icon: Server, label: 'Service Component', color: 'text-purple-400', bgHover: 'hover:bg-purple-500/10' },
                   { type: 'database' as const, icon: Database, label: 'Database System', color: 'text-amber-400', bgHover: 'hover:bg-amber-500/10' },
                   { type: 'queue' as const, icon: Layers, label: 'Message Queue', color: 'text-pink-400', bgHover: 'hover:bg-pink-500/10' },
-                  { type: 'api' as const, icon: Network, label: 'API Gateway', color: 'text-emerald-400', bgHover: 'hover:bg-emerald-500/10' },
+                  { type: 'api' as const, icon: Network, label: 'Main Gateway', color: 'text-emerald-400', bgHover: 'hover:bg-emerald-500/10' },
                 ].map(item => (
                   <button
                     key={item.type}
