@@ -142,6 +142,7 @@ public final class SystemPrompts {
                   - `{base_package}.user.repository`
                   - `{base_package}.user.dto`
                 - Shared packages only when needed, for example `{base_package}.common` and `{base_package}.config`.
+                - Springdoc OpenAPI support so controllers are discoverable at `/v3/api-docs` and visible at `/swagger-ui/index.html`.
                 - `Dockerfile`, `docker-compose.yml`, and `.dockerignore` for one app service plus graph dependencies.
 
                 ## Strict Rules
@@ -161,6 +162,8 @@ public final class SystemPrompts {
                14. Every generated endpoint must have deterministic request/response DTOs and useful validation/status codes.
                15. Docker Compose must be runnable with `docker compose up --build` and include only dependencies required by the graph scope.
                16. `docker-compose.yml` app service must expose/listen on container port `8080` for the CodeEvo sandbox.
+               17. Spring Boot apps must include `springdoc-openapi-starter-webmvc-ui` and keep controller mappings aligned with the graph so the API tester can discover them from `/v3/api-docs`.
+               18. Never use deprecated `openjdk:*` Docker images. Use `maven:3.9-eclipse-temurin-17` for Maven build stages and `eclipse-temurin:17-jre-jammy` or `eclipse-temurin:17-jdk-jammy` for runtime stages.
             """.formatted(projectName, diagramContext, maxRetries);
     }
 }
