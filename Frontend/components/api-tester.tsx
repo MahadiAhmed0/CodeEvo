@@ -56,6 +56,8 @@ const methodColors: Record<string, { text: string; bg: string; border: string; b
   PATCH: { text: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20', badge: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
 }
 
+const MONOLITH_PORT = 8080
+
 import { useDiagramStore } from '@/lib/store'
 
 export function APITester({ nodes, projectId }: APITesterProps) {
@@ -85,6 +87,8 @@ export function APITester({ nodes, projectId }: APITesterProps) {
   const [isTestRunnerActive, setIsTestRunnerActive] = useState(false)
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId)
+  const mainGatewayNode = nodes.find((n) => n.data.type === 'api')
+  const mainGatewayPort = mainGatewayNode?.data?.port || MONOLITH_PORT
 
   // Initialize expanded state for gateways
   const toggleGatewayExpand = useCallback((nodeId: string) => {
@@ -101,7 +105,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
     setLoading(true)
     const startTime = Date.now()
     try {
-      const port = selectedNode?.data?.port || 8080
+      const port = mainGatewayPort
       const url = `http://localhost:${port}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`
 
       const res = await fetch(url, {
@@ -220,7 +224,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
           endpoint: r.path,
           method: r.method,
           running: false,
-          nodePort: node.data.port || 8080
+          nodePort: mainGatewayPort
         })
       })
     })
@@ -309,8 +313,8 @@ export function APITester({ nodes, projectId }: APITesterProps) {
           <span className="w-px h-4 bg-white/[0.1]" />
           <span className="flex items-center gap-1.5">
             <Globe size={12} />
-            {selectedNode?.data?.name || 'No Service Selected'}
-            <span className="text-white/20">:{selectedNode?.data?.port || 8080}</span>
+            {mainGatewayNode?.data?.name || 'Main Gateway'}
+            <span className="text-white/20">:{mainGatewayPort}</span>
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -335,13 +339,13 @@ export function APITester({ nodes, projectId }: APITesterProps) {
             </div>
           )}
           {dockerStatus === 'STOPPED' || dockerStatus === 'FAILED' ? (
-            <Play onClick={handlePlay} size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" title="Start Sandbox" />
+            <Play onClick={handlePlay} size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" />
           ) : dockerStatus === 'BUILDING' ? (
-            <Loader2 size={14} className="text-emerald-400 animate-spin" title="Starting..." />
+            <Loader2 size={14} className="text-emerald-400 animate-spin" />
           ) : (
             <>
-              <Square onClick={handleStop} size={13} className="text-red-400 cursor-pointer hover:text-red-300 transition-colors" fill="currentColor" title="Stop Sandbox" />
-              <RefreshCw onClick={handleRestart} size={13} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" title="Restart Sandbox" />
+              <Square onClick={handleStop} size={13} className="text-red-400 cursor-pointer hover:text-red-300 transition-colors" fill="currentColor" />
+              <RefreshCw onClick={handleRestart} size={13} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" />
               {previewUrl && (
                 <a href={previewUrl} target="_blank" rel="noreferrer" title="Open Preview URL">
                   <ExternalLink size={13} className="text-blue-400 hover:text-blue-300 transition-colors cursor-pointer" />
@@ -369,10 +373,10 @@ export function APITester({ nodes, projectId }: APITesterProps) {
                 onChange={(e) => setSelectedNodeId(e.target.value)}
                 className="w-full appearance-none pl-7 pr-8 py-1.5 bg-white/[0.04] border border-white/[0.08] hover:border-white/[0.12] rounded-lg text-[11px] font-medium text-white/70 outline-none focus:border-purple-500/40 transition-all cursor-pointer"
               >
-                <option value="" disabled className="bg-[#0d1220]">Select a service...</option>
+                <option value="" disabled className="bg-[#0d1220]">Select a route source...</option>
                 {serviceNodes.map((n) => (
                   <option key={n.id} value={n.id} className="bg-[#0d1220] text-white">
-                    {n.data.name || 'Unnamed Service'} (:{n.data.port || 8080})
+                    {n.data.name || 'Unnamed Route Source'}
                   </option>
                 ))}
               </select>
@@ -389,7 +393,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
                 ? (gw.data.gatewayConfig.routes || []).map((r: any) => ({
                     method: (r.methods && r.methods.length > 0 && r.methods[0] !== 'ALL') ? r.methods[0] : 'GET',
                     path: r.pathPrefix,
-                    target: `${r.targetService}:${r.targetPort}`
+                    target: r.targetService
                   }))
                 : (gw.data.endpoints || []).map((e: any) => ({
                     method: e.method,
@@ -410,7 +414,6 @@ export function APITester({ nodes, projectId }: APITesterProps) {
                       : <Folder size={14} className="text-purple-400/70" />
                     }
                     <span className="flex-1 truncate">{gw.data.name}</span>
-                    <span className="text-[10px] text-white/20 font-mono">:{gw.data.port}</span>
                   </div>
                   {isExpanded && routes.map((route: any, idx: number) => {
                     const isActive = selectedNodeId === gw.id && endpoint === route.path && method === route.method
@@ -449,7 +452,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
           <div className="p-3 border-t border-white/[0.06]">
             <div className="flex items-center gap-2 text-[10px] text-white/20">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60" />
-              {serviceNodes.length} services · {serviceNodes.reduce((acc, g) => acc + ((g.data.type === 'api' ? g.data.gatewayConfig?.routes?.length : g.data.endpoints?.length) || 0), 0)} endpoints
+              {serviceNodes.length} route sources · {serviceNodes.reduce((acc, g) => acc + ((g.data.type === 'api' ? g.data.gatewayConfig?.routes?.length : g.data.endpoints?.length) || 0), 0)} endpoints
             </div>
           </div>
         </div>
@@ -480,7 +483,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
               {/* URL Input */}
               <div className="flex-1 flex items-center bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 gap-2 focus-within:border-purple-500/30 focus-within:bg-white/[0.04] transition-all">
                 <span className="text-white/25 text-[11px] font-mono whitespace-nowrap shrink-0">
-                  localhost:{selectedNode?.data?.port || 8080}
+                  localhost:{mainGatewayPort}
                 </span>
                 <input
                   value={endpoint}
@@ -830,7 +833,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
               <div className="flex items-start gap-2">
                 <span className="text-emerald-400"><CheckCircle2 size={14} /></span>
                 <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-                <span className="text-emerald-400">{serviceNodes.length} services detected with endpoints.</span>
+                <span className="text-emerald-400">{serviceNodes.length} route sources detected with endpoints.</span>
               </div>
               <div className="flex items-start gap-2">
                 <span className="text-blue-400">[SYSTEM]</span>
