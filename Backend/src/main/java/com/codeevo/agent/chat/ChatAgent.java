@@ -138,7 +138,7 @@ public class ChatAgent {
                     // Emit tool call event
                     gateway.emit(userId, buildToolCallEvent(sessionId, projectId, toolCall, "RUNNING"));
 
-                    ToolResult result = dispatchTool(toolCall, userId, sessionId, projectId, projectName,
+                    ToolResult result = dispatchTool(toolCall, userId, sessionId, projectId, projectName, diagramJson,
                             onCodingTask, onArchitectTask);
 
                     // Emit tool result event
@@ -168,7 +168,7 @@ public class ChatAgent {
     // ─── Tool Dispatch ────────────────────────────────────────────────────────
 
     private ToolResult dispatchTool(LlmToolCall toolCall, String userId, String sessionId,
-                                     String projectId, String projectName,
+                                     String projectId, String projectName, String diagramJson,
                                      Consumer<CodingTask> onCodingTask,
                                      Consumer<ArchitectureTask> onArchitectTask) {
         JsonNode args = toolCall.getArguments();
@@ -180,11 +180,12 @@ public class ChatAgent {
                     5);
 
             case "delegate_to_coding_agent" -> {
+                String taskSummary = args.path("task_summary").asText();
                 CodingTask task = CodingTask.builder()
                         .sessionId(sessionId).projectId(projectId).userId(userId)
-                        .taskSummary(args.path("task_summary").asText())
+                        .taskSummary(enrichCodingTaskSummary(taskSummary, diagramJson))
                         .targetFiles(parseStringList(args.path("target_files")))
-                        .acceptanceCriteria(parseStringList(args.path("acceptance_criteria")))
+                        .acceptanceCriteria(enrichAcceptanceCriteria(parseStringList(args.path("acceptance_criteria"))))
                         .build();
                 onCodingTask.accept(task);
                 yield ToolResult.ok("Coding Agent has been delegated the task. Execution in progress.");
@@ -212,6 +213,35 @@ public class ChatAgent {
 
     private boolean isDelegationTool(String toolName) {
         return toolName.equals("delegate_to_coding_agent") || toolName.equals("delegate_to_visual_architect");
+    }
+
+    private String enrichCodingTaskSummary(String taskSummary, String diagramJson) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(taskSummary != null ? taskSummary : "Generate code for the requested graph component.");
+        sb.append("\n\n## Deterministic Coding Context\n");
+        sb.append("- Use the current Project.diagramJson as the source of truth.\n");
+        sb.append("- Generate one runnable monolith behind MainGateway; graph service nodes are internal domains, not separate deployable apps.\n");
+        sb.append("- The Docker sandbox app must listen on container port 8080.\n");
+        sb.append("- For a named service request, implement only that graph service plus required shared/bootstrap files.\n");
+        sb.append("- For a whole-project request, implement all graph services and dependencies.\n");
+        sb.append("- Current graph JSON is available in the Coding Agent system prompt and task graph brief.\n");
+
+        if (diagramJson != null && !diagramJson.isBlank()) {
+            sb.append("- Diagram JSON length: ").append(diagramJson.length()).append(" characters.\n");
+        }
+        return sb.toString();
+    }
+
+    private List<String> enrichAcceptanceCriteria(List<String> criteria) {
+        List<String> enriched = new ArrayList<>();
+        if (criteria != null) {
+            enriched.addAll(criteria);
+        }
+        enriched.add("Generated code follows the current graph JSON: MainGateway routes, service methods, connected databases, queues, and external APIs.");
+        enriched.add("Generated project is one runnable monolith, not one deployable service per graph service node.");
+        enriched.add("Docker sandbox can build and run the app with docker compose, with the app container listening on port 8080.");
+        enriched.add("API tester can call generated endpoints through the MainGateway route prefixes.");
+        return enriched;
     }
 
     private List<String> parseStringList(JsonNode node) {
