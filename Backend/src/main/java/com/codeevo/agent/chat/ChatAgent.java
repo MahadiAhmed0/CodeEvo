@@ -222,6 +222,7 @@ public class ChatAgent {
         sb.append("- Use the current Project.diagramJson as the source of truth.\n");
         sb.append("- Generate one runnable monolith behind MainGateway; graph service nodes are internal domains, not separate deployable apps.\n");
         sb.append("- The Docker sandbox app must listen on container port 8080.\n");
+        sb.append("- Generated Spring Boot controllers must be discoverable through /v3/api-docs for the API tester.\n");
         sb.append("- For a named service request, implement only that graph service plus required shared/bootstrap files.\n");
         sb.append("- For a whole-project request, implement all graph services and dependencies.\n");
         sb.append("- Current graph JSON is available in the Coding Agent system prompt and task graph brief.\n");
@@ -241,6 +242,8 @@ public class ChatAgent {
         enriched.add("Generated project is one runnable monolith, not one deployable service per graph service node.");
         enriched.add("Docker sandbox can build and run the app with docker compose, with the app container listening on port 8080.");
         enriched.add("API tester can call generated endpoints through the MainGateway route prefixes.");
+        enriched.add("Spring Boot controllers are exposed through /v3/api-docs and Swagger UI for automatic API discovery.");
+        enriched.add("Dockerfile uses maintained Eclipse Temurin Java 17 images, not deprecated openjdk:* image tags.");
         return enriched;
     }
 
