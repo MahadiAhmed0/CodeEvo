@@ -11,15 +11,18 @@ import com.codeevo.agent.model.payload.ToolCallPayload;
 import com.codeevo.agent.prompt.SystemPrompts;
 import com.codeevo.agent.tools.ToolRegistry;
 import com.codeevo.agent.tools.ToolResult;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Agent 3: Coding Agent (Execution Engine)
@@ -42,6 +45,7 @@ public class CodingAgent {
     private final WebSocketGateway gateway;
     private final CodingAgentTools tools;
     private final AgentModelProperties props;
+    private final ObjectMapper objectMapper;
 
     /** Pending user approvals: approvalToken → CompletableFuture<UserFeedback> */
     private final ConcurrentHashMap<String, CompletableFuture<UserFeedback>> pendingApprovals =
@@ -52,12 +56,14 @@ public class CodingAgent {
             ToolRegistry toolRegistry,
             WebSocketGateway gateway,
             CodingAgentTools tools,
-            AgentModelProperties props) {
+            AgentModelProperties props,
+            ObjectMapper objectMapper) {
         this.llmClient = llmClient;
         this.toolRegistry = toolRegistry;
         this.gateway = gateway;
         this.tools = tools;
         this.props = props;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -75,11 +81,13 @@ public class CodingAgent {
         // Build the scratchpad — this is the working memory for this entire task
         List<LlmMessage> scratchpad = new ArrayList<>();
         scratchpad.add(LlmMessage.system(SystemPrompts.codingAgent(projectName, maxRetries, diagramJson)));
-        scratchpad.add(LlmMessage.user(buildTaskPrompt(task)));
+        scratchpad.add(LlmMessage.user(buildTaskPrompt(task, diagramJson)));
 
         int consecutiveErrors = 0;
         int iterations = 0;
         int maxIterations = 100; // Safety cap for long tasks
+        boolean wroteCode = false;
+        boolean requiresCodeWrite = requiresCodeWrite(task);
 
         while (iterations++ < maxIterations) {
             LlmResponse response = llmClient.chat(scratchpad, toolRegistry.getCodingTools());
@@ -106,6 +114,22 @@ public class CodingAgent {
             }
 
             if (response.isEndTurn()) {
+                if (requiresCodeWrite && !wroteCode) {
+                    gateway.emit(userId, AgentEvent.progress(sessionId, projectId, AgentType.CODING,
+                            "The model tried to finish without writing code. Continuing implementation...",
+                            "WARNING"));
+                    scratchpad.add(LlmMessage.assistant(response.getTextContent() != null
+                            ? response.getTextContent()
+                            : "I attempted to finish without writing files."));
+                    scratchpad.add(LlmMessage.user("""
+                            This task is not complete because no project code files were created or modified.
+                            Continue now and write the required implementation files using create_file or replace_file_content.
+                            If the project has no files yet, create the runnable monolith files first: pom.xml,
+                            application class, application.yml, requested domain/controller/service/model/repository/DTO files,
+                            Dockerfile, docker-compose.yml, and .dockerignore as required by the graph.
+                            """));
+                    continue;
+                }
                 gateway.emit(userId, AgentEvent.progress(sessionId, projectId, AgentType.CODING,
                         "✅ Task complete", "SUCCESS"));
                 gateway.emit(userId, AgentEvent.taskComplete(sessionId, projectId, AgentType.CODING));
@@ -121,6 +145,9 @@ public class CodingAgent {
                     gateway.emit(userId, toolCallEvent(sessionId, projectId, toolCall, "RUNNING"));
 
                     ToolResult result = dispatchTool(toolCall, userId, task);
+                    if (result.isSuccess() && isWriteTool(toolCall.getName())) {
+                        wroteCode = true;
+                    }
 
                     String status = result.isSuccess() ? "SUCCESS" : "FAILED";
                     gateway.emit(userId, toolResultEvent(sessionId, projectId, toolCall, result));
@@ -231,9 +258,10 @@ public class CodingAgent {
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    private String buildTaskPrompt(CodingTask task) {
+    private String buildTaskPrompt(CodingTask task, String diagramJson) {
         StringBuilder sb = new StringBuilder();
         sb.append("## Task\n").append(task.getTaskSummary()).append("\n\n");
+        sb.append(buildGraphImplementationBrief(diagramJson, task.getTaskSummary()));
         if (task.getTargetFiles() != null && !task.getTargetFiles().isEmpty()) {
             sb.append("## Target Files (likely involved)\n");
             task.getTargetFiles().forEach(f -> sb.append("- ").append(f).append("\n"));
@@ -244,6 +272,224 @@ public class CodingAgent {
             task.getAcceptanceCriteria().forEach(c -> sb.append("- ").append(c).append("\n"));
         }
         return sb.toString();
+    }
+
+    private String buildGraphImplementationBrief(String diagramJson, String taskSummary) {
+        if (diagramJson == null || diagramJson.isBlank()) {
+            return "## Graph Implementation Brief\nNo diagram JSON is available for this task.\n\n";
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(diagramJson);
+            JsonNode nodes = root.path("nodes");
+            JsonNode edges = root.path("edges");
+            if (!nodes.isArray()) {
+                return "## Graph Implementation Brief\nDiagram JSON has no nodes array.\n\n";
+            }
+
+            Map<String, JsonNode> nodeById = new LinkedHashMap<>();
+            List<JsonNode> serviceNodes = new ArrayList<>();
+            JsonNode gatewayNode = null;
+
+            for (JsonNode node : nodes) {
+                nodeById.put(node.path("id").asText(), node);
+                String type = node.path("data").path("type").asText();
+                if ("api".equals(type)) {
+                    gatewayNode = node;
+                } else if ("service".equals(type)) {
+                    serviceNodes.add(node);
+                }
+            }
+
+            List<JsonNode> selectedServices = selectServicesForTask(serviceNodes, taskSummary);
+            StringBuilder sb = new StringBuilder("## Graph Implementation Brief\n");
+            sb.append("Source: current Project.diagramJson. Follow this brief over generic assumptions.\n");
+            sb.append("Architecture mode: single Spring Boot monolith behind MainGateway. Service nodes are internal domains.\n\n");
+
+            if (gatewayNode != null) {
+                JsonNode gwData = gatewayNode.path("data");
+                JsonNode gwConfig = gwData.path("gatewayConfig");
+                sb.append("MainGateway:\n");
+                sb.append("- name: ").append(gwData.path("name").asText("MainGateway")).append("\n");
+                sb.append("- graph public port: ").append(gwData.path("port").asText("8080")).append("\n");
+                sb.append("- implementation language: ").append(gwConfig.path("language").asText("spring-boot")).append("\n");
+                sb.append("- sandbox container port: 8080\n");
+                appendGatewayRoutes(sb, gwConfig.path("routes"), selectedServices);
+                sb.append("\n");
+            }
+
+            sb.append("Requested service scope:\n");
+            if (selectedServices.isEmpty()) {
+                sb.append("- No exact service match found in the graph. Use the task wording and existing files carefully.\n\n");
+            } else {
+                for (JsonNode service : selectedServices) {
+                    appendServiceBrief(sb, service, nodeById, edges, gatewayNode);
+                    sb.append("\n");
+                }
+            }
+
+            sb.append("Global graph dependencies to consider only when connected to requested scope:\n");
+            for (JsonNode node : nodes) {
+                String type = node.path("data").path("type").asText();
+                if ("database".equals(type) || "queue".equals(type)) {
+                    sb.append("- ").append(node.path("data").path("name").asText(node.path("id").asText()))
+                            .append(" (").append(type).append(")\n");
+                }
+            }
+            sb.append("\n");
+            return sb.toString();
+        } catch (Exception e) {
+            return "## Graph Implementation Brief\nCould not parse diagram JSON: " + e.getMessage() + "\n\n";
+        }
+    }
+
+    private List<JsonNode> selectServicesForTask(List<JsonNode> serviceNodes, String taskSummary) {
+        String summary = taskSummary != null ? taskSummary.toLowerCase() : "";
+        String normalizedSummary = normalizeIdentifier(summary);
+        boolean wholeGraph = summary.contains("whole graph")
+                || summary.contains("entire architecture")
+                || summary.contains("approved architecture")
+                || summary.contains("full project")
+                || summary.contains("all services")
+                || summary.contains("generate code for this project");
+
+        List<JsonNode> selected = new ArrayList<>();
+        for (JsonNode service : serviceNodes) {
+            String name = service.path("data").path("name").asText();
+            String normalizedName = normalizeIdentifier(name);
+            if (wholeGraph || (!name.isBlank()
+                    && (summary.contains(name.toLowerCase()) || normalizedSummary.contains(normalizedName)))) {
+                selected.add(service);
+            }
+        }
+        return selected;
+    }
+
+    private String normalizeIdentifier(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toLowerCase().replaceAll("[^a-z0-9]", "");
+    }
+
+    private void appendGatewayRoutes(StringBuilder sb, JsonNode routes, List<JsonNode> selectedServices) {
+        if (!routes.isArray()) {
+            return;
+        }
+        sb.append("- routes:\n");
+        for (JsonNode route : routes) {
+            String target = route.path("targetService").asText();
+            if (!selectedServices.isEmpty() && selectedServices.stream()
+                    .noneMatch(s -> s.path("data").path("name").asText().equals(target))) {
+                continue;
+            }
+            sb.append("  - ").append(route.path("pathPrefix").asText("/"))
+                    .append(" -> ").append(target)
+                    .append(" methods=").append(route.path("methods").toString())
+                    .append(" stripPrefix=").append(route.path("stripPrefix").asBoolean(false))
+                    .append("\n");
+        }
+    }
+
+    private void appendServiceBrief(StringBuilder sb, JsonNode service, Map<String, JsonNode> nodeById,
+                                    JsonNode edges, JsonNode gatewayNode) {
+        String serviceId = service.path("id").asText();
+        JsonNode data = service.path("data");
+        String serviceName = data.path("name").asText(serviceId);
+        sb.append("- Service domain: ").append(serviceName).append("\n");
+
+        JsonNode methods = data.path("methods");
+        if (methods.isArray() && methods.size() > 0) {
+            sb.append("  methods from graph:\n");
+            for (JsonNode method : methods) {
+                sb.append("  - ").append(method.path("name").asText())
+                        .append(" [").append(method.path("type").asText("handler")).append("] ")
+                        .append(method.path("description").asText()).append("\n");
+            }
+        }
+
+        if (gatewayNode != null) {
+            JsonNode routes = gatewayNode.path("data").path("gatewayConfig").path("routes");
+            if (routes.isArray()) {
+                for (JsonNode route : routes) {
+                    if (serviceName.equals(route.path("targetService").asText())) {
+                        sb.append("  gateway route: ").append(route.path("pathPrefix").asText("/"))
+                                .append(" methods=").append(route.path("methods").toString())
+                                .append(" stripPrefix=").append(route.path("stripPrefix").asBoolean(false))
+                                .append("\n");
+                    }
+                }
+            }
+        }
+
+        if (edges.isArray()) {
+            sb.append("  graph connections:\n");
+            for (JsonNode edge : edges) {
+                String source = edge.path("source").asText();
+                String target = edge.path("target").asText();
+                if (!serviceId.equals(source) && !serviceId.equals(target)) {
+                    continue;
+                }
+                String otherId = serviceId.equals(source) ? target : source;
+                JsonNode other = nodeById.get(otherId);
+                if (other == null) {
+                    continue;
+                }
+                JsonNode otherData = other.path("data");
+                sb.append("  - ").append(edge.path("label").asText("CONNECTED"))
+                        .append(" ").append(otherData.path("name").asText(otherId))
+                        .append(" (").append(otherData.path("type").asText("unknown")).append(")");
+                appendDataShape(sb, otherData);
+                sb.append("\n");
+            }
+        }
+    }
+
+    private void appendDataShape(StringBuilder sb, JsonNode dataNode) {
+        JsonNode tables = dataNode.path("tables");
+        JsonNode collections = dataNode.path("collections");
+        JsonNode topics = dataNode.path("topics");
+        if (tables.isArray() && tables.size() > 0) {
+            sb.append(" tables=").append(namedArray(tables));
+        }
+        if (collections.isArray() && collections.size() > 0) {
+            sb.append(" collections=").append(namedArray(collections));
+        }
+        if (topics.isArray() && topics.size() > 0) {
+            sb.append(" topics=").append(topics.toString());
+        }
+    }
+
+    private String namedArray(JsonNode array) {
+        List<String> names = new ArrayList<>();
+        for (JsonNode item : array) {
+            names.add(item.path("name").asText(item.asText()));
+        }
+        return names.toString();
+    }
+
+    private boolean requiresCodeWrite(CodingTask task) {
+        String summary = task.getTaskSummary() != null ? task.getTaskSummary().toLowerCase() : "";
+        if (summary.contains("generate")
+                || summary.contains("create")
+                || summary.contains("implement")
+                || summary.contains("build")
+                || summary.contains("write")
+                || summary.contains("modify")
+                || summary.contains("update")) {
+            return true;
+        }
+        return task.getAcceptanceCriteria() != null && task.getAcceptanceCriteria().stream()
+                .map(String::toLowerCase)
+                .anyMatch(c -> c.contains("generated code")
+                        || c.contains("runnable")
+                        || c.contains("endpoint")
+                        || c.contains("docker")
+                        || c.contains("api tester"));
+    }
+
+    private boolean isWriteTool(String toolName) {
+        return "create_file".equals(toolName) || "replace_file_content".equals(toolName);
     }
 
     private List<String> parseList(com.fasterxml.jackson.databind.JsonNode node) {
