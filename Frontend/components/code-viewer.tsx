@@ -22,6 +22,7 @@ import { projectCodeApi, dockerApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { useDiagramStore } from '@/lib/store'
 import { useAgentStore } from '@/lib/agent-store'
+import { stompClient } from '@/lib/websocket'
 
 // Basic syntax highlighting colors
 const colors = {
@@ -87,14 +88,14 @@ const FileTreeItem = ({ item, level = 0, onSelectFile, activeFile }: any) => {
 // ─── Main component ──────────────────────────────────────────────────────────
 
 export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
-  const { setShowProjectSettings, dockerStatus, setDockerStatus, dockerLogs, setDockerLogs, previewUrl, setPreviewUrl } = useDiagramStore()
+  const { setShowProjectSettings, dockerStatus, setDockerStatus, dockerLogs, dockerProblems, setDockerLogs, previewUrl, setPreviewUrl } = useDiagramStore()
 
   // State: backend tree, loading, and whether backend has files
   const [backendTree, setBackendTree] = useState<Record<string, any> | null>(null)
   const [isLoadingCode, setIsLoadingCode] = useState(false)
   const [hasBackendFiles, setHasBackendFiles] = useState(false)
 
-  const { events } = useAgentStore()
+  const { events, isConnected: isAgentConnected } = useAgentStore()
   const processedIndexRef = React.useRef<number>(0)
 
   const loadTree = (isInitial = false) => {
@@ -108,7 +109,7 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
           setHasBackendFiles(true)
           
           // If we have an active file open, attempt to update its content to the latest version
-          setActiveFile((prevActive) => {
+          setActiveFile((prevActive: any) => {
             if (!prevActive) return null
             // Recursive search to find the updated file content in the new tree
             const findUpdatedFile = (treeNode: any): any => {
@@ -156,8 +157,7 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
   // Subscribe to Docker logs via WebSocket
   useEffect(() => {
     if (!projectId) return
-    const { stompClient } = useAgentStore.getState()
-    if (!stompClient || !stompClient.connected) return
+    if (!stompClient || !stompClient.isConnected) return
 
     const subId = stompClient.subscribeRaw(`/topic/project/${projectId}/docker-logs`, (msg) => {
       setDockerLogs(prev => {
@@ -177,7 +177,7 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
     })
 
     return () => stompClient.unsubscribe(subId)
-  }, [projectId, useAgentStore.getState().isConnected])
+  }, [projectId, isAgentConnected, setDockerLogs, setDockerStatus])
 
   // Auto-refresh whenever the agent creates/edits a file or finishes a task
   useEffect(() => {
@@ -195,7 +195,7 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
       if (event.type === 'DIFF_READY') {
         const payload = event.payload as any
         // 1. Instantly use the push response payload to show the code (SSE style)
-        setActiveFile((prevActive) => {
+        setActiveFile((prevActive: any) => {
           const eventFileName = payload.filePath.split('/').pop()
           if (prevActive && prevActive.name === eventFileName) {
             return { ...prevActive, content: payload.modifiedContent }
@@ -272,10 +272,23 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
     }
   }
 
-  const problems = [
-    { id: 'ERR-USER-01', type: 'error', message: 'Connection to PaymentService (port 9000) failed. Connection refused.', file: 'UserService/main.go', line: 42 },
-    { id: 'WARN-ORD-01', type: 'warning', message: 'OrderService DB URI not found, using fallback in-memory store.', file: 'OrderService/application.yml', line: 15 }
-  ]
+  const handleSendProblemToAgent = (problem: typeof dockerProblems[number]) => {
+    const location = problem.filePath
+      ? `${problem.filePath}${problem.line ? `:${problem.line}` : ''}${problem.column ? `:${problem.column}` : ''}`
+      : 'Docker sandbox logs'
+
+    useAgentStore.getState().sendMessage(
+      [
+        'Fix this sandbox/server problem in the generated project code.',
+        `Location: ${location}`,
+        `Severity: ${problem.severity}`,
+        `Source: ${problem.source}`,
+        `Error: ${problem.raw}`,
+        '',
+        'Use the current project files and architecture graph context. Write the code changes needed, then explain how to verify the API again.'
+      ].join('\n')
+    )
+  }
 
   // Decodes HTML entities that the LLM may have injected (e.g. &lt; -> <).
   // Does NOT strip XML or angle-bracket tags so pom.xml and generics render correctly.
@@ -347,13 +360,13 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
         </div>
         <div className="flex items-center gap-3">
           {dockerStatus === 'STOPPED' || dockerStatus === 'FAILED' ? (
-            <Play onClick={handlePlay} size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" title="Start Sandbox" />
+            <Play onClick={handlePlay} size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" />
           ) : dockerStatus === 'BUILDING' ? (
-            <Loader2 size={14} className="text-emerald-400 animate-spin" title="Starting..." />
+            <Loader2 size={14} className="text-emerald-400 animate-spin" />
           ) : (
             <>
-              <Square onClick={handleStop} size={13} className="text-red-400 cursor-pointer hover:text-red-300 transition-colors" fill="currentColor" title="Stop Sandbox" />
-              <RefreshCw onClick={handleRestart} size={13} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" title="Restart Sandbox" />
+              <Square onClick={handleStop} size={13} className="text-red-400 cursor-pointer hover:text-red-300 transition-colors" fill="currentColor" />
+              <RefreshCw onClick={handleRestart} size={13} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" />
               {previewUrl && (
                 <a href={previewUrl} target="_blank" rel="noreferrer" title="Open Preview URL">
                   <ExternalLink size={13} className="text-blue-400 hover:text-blue-300 transition-colors cursor-pointer" />
@@ -444,7 +457,7 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
             className={`cursor-pointer flex items-center gap-1.5 ${activeTab === 'problems' ? 'text-purple-400 border-b-2 border-purple-400 pb-2 translate-y-[1px]' : 'text-gray-500 hover:text-gray-300'}`}
           >
             Problems
-            <span className="bg-red-500/20 text-red-400 rounded-full px-1.5 py-0.5 text-[10px] leading-none">{problems.length}</span>
+            <span className="bg-red-500/20 text-red-400 rounded-full px-1.5 py-0.5 text-[10px] leading-none">{dockerProblems.length}</span>
           </div>
         </div>
         <div className="flex-1 p-3 overflow-y-auto text-[12px] text-gray-400 font-mono space-y-1">
@@ -491,27 +504,35 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
 
           {activeTab === 'problems' && (
             <div className="space-y-2">
-              {problems.map((problem) => (
-                <div key={problem.id} className="flex flex-col gap-1 bg-white/[0.02] p-2 rounded border border-white/[0.04]">
-                  <div className="flex items-center gap-2">
-                    {problem.type === 'error' ? (
-                      <AlertCircle size={14} className="text-red-400" />
-                    ) : (
-                      <AlertCircle size={14} className="text-orange-400" />
-                    )}
-                    <span className={problem.type === 'error' ? 'text-red-400 font-semibold' : 'text-orange-400 font-semibold'}>
-                      {problem.id}
-                    </span>
-                    <span className="text-gray-500">in {problem.file}:{problem.line}</span>
+              {dockerProblems.length === 0 ? (
+                <div className="text-gray-500 italic">No sandbox problems detected from the current logs.</div>
+              ) : (
+                dockerProblems.map((problem) => (
+                  <div key={problem.id} className="flex flex-col gap-1 bg-white/[0.02] p-2 rounded border border-white/[0.04]">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle size={14} className={problem.severity === 'error' ? 'text-red-400' : 'text-orange-400'} />
+                      <span className={problem.severity === 'error' ? 'text-red-400 font-semibold' : 'text-orange-400 font-semibold'}>
+                        {problem.id}
+                      </span>
+                      <span className="text-gray-500 uppercase text-[10px]">{problem.source}</span>
+                      {problem.filePath && (
+                        <span className="text-gray-500">
+                          in {problem.filePath}{problem.line ? `:${problem.line}` : ''}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-gray-300 ml-6 break-words">{problem.message}</div>
+                    <div className="ml-6 mt-1 flex gap-2">
+                      <button
+                        onClick={() => handleSendProblemToAgent(problem)}
+                        className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded hover:bg-purple-500/30 transition-colors"
+                      >
+                        Send to AI Agent
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-gray-300 ml-6">{problem.message}</div>
-                  <div className="ml-6 mt-1 flex gap-2">
-                    <button className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded hover:bg-purple-500/30 transition-colors">
-                      Send to AI Agent
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           )}
         </div>
