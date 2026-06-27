@@ -149,9 +149,15 @@ public class CodingAgent {
                         wroteCode = true;
                     }
 
-                    String status = result.isSuccess() ? "SUCCESS" : "FAILED";
                     gateway.emit(userId, toolResultEvent(sessionId, projectId, toolCall, result));
                     scratchpad.add(LlmMessage.toolResult(toolCall.getId(), result.toToolMessageContent()));
+                    if (!result.isSuccess() && "replace_file_content".equals(toolCall.getName())) {
+                        scratchpad.add(LlmMessage.user("""
+                                replace_file_content failed. Do not retry the same exact replacement.
+                                Use view_file once to read the current file. If the fix is larger than a tiny exact block,
+                                call create_file with the complete corrected file content to overwrite the existing file.
+                                """));
+                    }
 
                     // ask_user pauses the loop — we wait for feedback
                     if (toolCall.getName().equals("ask_user")) {
