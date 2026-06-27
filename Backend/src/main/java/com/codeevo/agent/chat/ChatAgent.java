@@ -244,6 +244,7 @@ public class ChatAgent {
         enriched.add("API tester can call generated endpoints through the MainGateway route prefixes.");
         enriched.add("Spring Boot controllers are exposed through /v3/api-docs and Swagger UI for automatic API discovery.");
         enriched.add("Dockerfile uses maintained Eclipse Temurin Java 17 images, not deprecated openjdk:* image tags.");
+        enriched.add("Docker Compose omits obsolete top-level version and Spring config sets spring.jpa.open-in-view=false.");
         return enriched;
     }
 
