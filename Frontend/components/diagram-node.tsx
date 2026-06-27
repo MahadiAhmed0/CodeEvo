@@ -15,7 +15,6 @@ interface DiagramNodeProps extends NodeProps {
   data: {
     type: 'service' | 'api' | 'database' | 'queue'
     name: string
-    language?: string
     port?: number
     engine?: string
     provider?: string
@@ -44,7 +43,7 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
     api: {
       color: '#10b981',
       colorEnd: '#34d399',
-      label: 'API',
+      label: 'MAIN GATEWAY',
       icon: Network,
       glow: 'rgba(16, 185, 129, 0.15)',
       borderColor: 'rgba(16, 185, 129, 0.25)',
@@ -87,14 +86,16 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
           type: data.type,
           name: data.name,
           position: { x: 0, y: 0 },
-          language: data.language,
           port: data.port,
           engine: data.engine,
           provider: data.provider,
           endpoints: data.endpoints,
+          methods: data.methods,
+          externalAPIs: data.externalAPIs,
           tables: data.tables,
           collections: data.collections,
           topics: data.topics,
+          gatewayConfig: data.gatewayConfig,
         })
       }
     >
@@ -119,10 +120,6 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
 
         {data.type === 'service' && (
           <div className="space-y-1 text-[10px]">
-            <div className="flex justify-between text-white/35">
-              <span>{data.language || 'N/A'}</span>
-              <span className="font-mono text-white/25">:{data.port || 8000}</span>
-            </div>
             {data.methods && data.methods.length > 0 && (
               <div className="pt-1.5 border-t border-white/[0.06] space-y-1">
                 {data.methods.slice(0, 3).map((m, i) => {
@@ -153,7 +150,7 @@ export function DiagramNode({ data, selected, id }: DiagramNodeProps) {
         {data.type === 'api' && data.gatewayConfig && (
           <div className="space-y-1.5 text-[10px]">
             <div className="flex justify-between text-white/35">
-              <span className="capitalize">{data.gatewayConfig.platform.replace('-', ' ')}</span>
+              <span className="capitalize">{data.gatewayConfig.language.replace('-', ' ')}</span>
               <span className="font-mono text-white/25">:{data.port || 8080}</span>
             </div>
             {data.gatewayConfig.routes.length > 0 ? (

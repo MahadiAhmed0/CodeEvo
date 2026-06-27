@@ -170,10 +170,11 @@ public class ProjectService {
             throw new DiagramPayloadTooLargeException("Diagram payload exceeds " + maxDiagramSizeBytes + " bytes");
         }
 
-        JsonNode rootNode = jsonValidator.parseAndValidate(rawJson);
+        String normalizedJson = jsonValidator.normalizeForMainGateway(rawJson);
+        JsonNode rootNode = jsonValidator.parseAndValidate(normalizedJson);
         int serviceCount = jsonValidator.countServiceNodes(rootNode);
 
-        DiagramDiffService.DiffResult diff = diffService.computeDiff(project.getDiagramJson(), rawJson);
+        DiagramDiffService.DiffResult diff = diffService.computeDiff(project.getDiagramJson(), normalizedJson);
         
         String changeMessage = request.getChangeMessage();
         if (changeMessage == null || changeMessage.isBlank()) {
@@ -183,10 +184,10 @@ public class ProjectService {
         }
 
         ProjectHistory snapshot = historyService.createSnapshot(
-                projectId, userId, rawJson, diff.nodeDelta, diff.edgeDelta, changeMessage
+                projectId, userId, normalizedJson, diff.nodeDelta, diff.edgeDelta, changeMessage
         );
 
-        project.setDiagramJson(rawJson);
+        project.setDiagramJson(normalizedJson);
         project.setDiagramVersion(project.getDiagramVersion() + 1);
         project.setServiceCount(serviceCount);
         project.setUpdatedAt(Instant.now());
@@ -232,7 +233,7 @@ public class ProjectService {
             throw new ProjectNotFoundException("History entry not found for this project");
         }
 
-        String restoredJson = historyEntry.getDiagramJson();
+        String restoredJson = jsonValidator.normalizeForMainGateway(historyEntry.getDiagramJson());
         JsonNode rootNode = jsonValidator.parseAndValidate(restoredJson);
         int serviceCount = jsonValidator.countServiceNodes(rootNode);
 
@@ -277,7 +278,7 @@ public class ProjectService {
                 .description(project.getDescription())
                 .status(project.getStatus())
                 .serviceCount(project.getServiceCount())
-                .diagramJson(project.getDiagramJson())
+                .diagramJson(jsonValidator.normalizeForMainGateway(project.getDiagramJson()))
                 .diagramVersion(project.getDiagramVersion())
                 .createdAt(project.getCreatedAt())
                 .updatedAt(project.getUpdatedAt())

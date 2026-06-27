@@ -21,13 +21,12 @@ export interface GatewayRoute {
   id: string
   pathPrefix: string
   targetService: string
-  targetPort: number
   methods: string[]
   stripPrefix: boolean
 }
 
 export interface GatewayConfig {
-  platform: 'nginx' | 'express-proxy' | 'spring-cloud-gateway'
+  language: 'spring-boot' | 'node.js' | 'go'
   routes: GatewayRoute[]
   auth: {
     enabled: boolean
@@ -60,7 +59,6 @@ export interface Node {
   type: 'service' | 'database' | 'queue' | 'api'
   name: string
   position: { x: number; y: number }
-  language?: string
   port?: number
   engine?: string
   provider?: string
@@ -97,6 +95,17 @@ export interface APITestingState {
   loading: boolean
 }
 
+export interface DockerProblem {
+  id: string
+  severity: 'error' | 'warning'
+  source: 'docker' | 'build' | 'runtime'
+  message: string
+  raw: string
+  filePath?: string
+  line?: number
+  column?: number
+}
+
 export interface ProjectSettings {
   environmentVariables: Record<string, string>
   aiApiKeys: {
@@ -117,6 +126,15 @@ interface DiagramStore {
   projectSettings: ProjectSettings
   showProjectSettings: boolean
   
+  dockerStatus: 'BUILDING' | 'RUNNING' | 'STOPPED' | 'FAILED'
+  dockerLogs: string[]
+  dockerProblems: DockerProblem[]
+  previewUrl: string | null
+  
+  setDockerStatus: (status: 'BUILDING' | 'RUNNING' | 'STOPPED' | 'FAILED') => void
+  setDockerLogs: (logs: string[] | ((prev: string[]) => string[])) => void
+  setDockerProblems: (problems: DockerProblem[] | ((prev: DockerProblem[]) => DockerProblem[])) => void
+  setPreviewUrl: (url: string | null) => void
   setNodes: (nodes: Node[]) => void
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void
   addNode: (node: Node) => void
@@ -149,6 +167,69 @@ const defaultAPITesting: APITestingState = {
   loading: false,
 }
 
+const buildProblemPatterns = [
+  /\[ERROR\]/i,
+  /\bERROR\b/i,
+  /\bBUILD FAILURE\b/i,
+  /\bCompilation failure\b/i,
+  /\bcompilation error\b/i,
+  /\bcannot find symbol\b/i,
+  /\bpackage .* does not exist\b/i,
+  /\berror:/i,
+  /\bfailed to (build|compile|start|create|run)\b/i,
+  /\bexited with code\b/i,
+  /\bException\b/,
+  /\bCaused by:/,
+]
+
+const warningProblemPatterns = [
+  /\[WARN(ING)?\]/i,
+  /\bWARN(ING)?\b/i,
+]
+
+const parseDockerProblems = (logs: string[]): DockerProblem[] => {
+  const seen = new Set<string>()
+  const problems: DockerProblem[] = []
+
+  logs.forEach((raw, index) => {
+    const line = raw.trim()
+    if (!line) return
+
+    const isError = buildProblemPatterns.some((pattern) => pattern.test(line))
+    const isWarning = !isError && warningProblemPatterns.some((pattern) => pattern.test(line))
+    if (!isError && !isWarning) return
+
+    const fileMatch =
+      line.match(/([A-Za-z]:?[^:\s]+?\.(?:java|kt|go|js|ts|tsx|jsx|xml|yml|yaml|json)):\[(\d+),(\d+)\]/) ||
+      line.match(/([^\s:]+?\.(?:java|kt|go|js|ts|tsx|jsx|xml|yml|yaml|json)):(\d+):(\d+)/)
+
+    const filePath = fileMatch?.[1]
+    const lineNumber = fileMatch?.[2] ? Number(fileMatch[2]) : undefined
+    const columnNumber = fileMatch?.[3] ? Number(fileMatch[3]) : undefined
+    const dedupeKey = `${filePath || ''}:${lineNumber || ''}:${columnNumber || ''}:${line}`
+    if (seen.has(dedupeKey)) return
+    seen.add(dedupeKey)
+
+    const source: DockerProblem['source'] =
+      /\b(build|compile|maven|gradle|javac|npm|typescript|tsc)\b/i.test(line) ? 'build' :
+      /\b(container|docker|compose|network|image)\b/i.test(line) ? 'docker' :
+      'runtime'
+
+    problems.push({
+      id: `${isError ? 'ERR' : 'WARN'}-${String(problems.length + 1).padStart(3, '0')}`,
+      severity: isError ? 'error' : 'warning',
+      source,
+      message: line.replace(/^\[[A-Z]+\]\s*/i, '').slice(0, 300),
+      raw: line,
+      filePath,
+      line: lineNumber,
+      column: columnNumber,
+    })
+  })
+
+  return problems.slice(-100)
+}
+
 export const useDiagramStore = create<DiagramStore>((set) => ({
   nodes: [],
   edges: [],
@@ -164,6 +245,24 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
     aiApiKeys: {}
   },
   showProjectSettings: false,
+
+  dockerStatus: 'STOPPED',
+  dockerLogs: [],
+  dockerProblems: [],
+  previewUrl: null,
+
+  setDockerStatus: (dockerStatus) => set({ dockerStatus }),
+  setDockerLogs: (logs) => set((state) => {
+    const dockerLogs = typeof logs === 'function' ? logs(state.dockerLogs) : logs
+    return {
+      dockerLogs,
+      dockerProblems: parseDockerProblems(dockerLogs),
+    }
+  }),
+  setDockerProblems: (dockerProblems) => set((state) => ({
+    dockerProblems: typeof dockerProblems === 'function' ? dockerProblems(state.dockerProblems) : dockerProblems
+  })),
+  setPreviewUrl: (previewUrl) => set({ previewUrl }),
 
   setNodes: (nodes) => set({ nodes }),
   updateNodePosition: (nodeId, position) =>

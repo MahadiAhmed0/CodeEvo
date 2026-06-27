@@ -112,20 +112,6 @@ export function ContextPanel({ selectedNode }: any) {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 uppercase">Language</label>
-                  <Input 
-                    defaultValue={selectedNode.language}
-                    className="mt-1 bg-gray-50"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-gray-700 uppercase">Port</label>
-                  <Input 
-                    defaultValue={selectedNode.port}
-                    className="mt-1 bg-gray-50"
-                  />
-                </div>
-                <div>
                   <label className="text-xs font-semibold text-gray-700 uppercase">Endpoints</label>
                   <div className="mt-2 space-y-2">
                     {selectedNode.endpoints?.map((endpoint: any, i: number) => (
@@ -201,7 +187,7 @@ export function ContextPanel({ selectedNode }: any) {
         )}
 
         {activeTab === 'api' && selectedNode.type === 'service' && (
-          <APITester />
+          <APITester nodes={[]} />
         )}
       </div>
 

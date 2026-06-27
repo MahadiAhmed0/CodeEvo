@@ -206,7 +206,7 @@ export default function GitVisualizationPage() {
                   
                   <div className="relative flex flex-col md:flex-row items-center justify-center gap-8 md:gap-12 h-full z-10 w-full pt-4">
                     
-                    {/* API Gateway */}
+                    {/* Main Gateway */}
                     <motion.div 
                       whileHover={{ scale: 1.05 }}
                       className="flex flex-col items-center"
@@ -214,8 +214,8 @@ export default function GitVisualizationPage() {
                       <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 border border-indigo-400/30 flex items-center justify-center shadow-lg mb-3 shadow-indigo-500/20">
                         <Network className="w-8 h-8 text-white" />
                       </div>
-                      <p className="font-semibold text-white/90 text-sm">API Gateway</p>
-                      <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-400 font-mono mt-1">Nginx</span>
+                      <p className="font-semibold text-white/90 text-sm">Main Gateway</p>
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-400 font-mono mt-1">Spring Boot</span>
                     </motion.div>
 
                     {/* Connecting Lines */}
