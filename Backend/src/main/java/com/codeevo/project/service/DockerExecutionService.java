@@ -65,15 +65,16 @@ public class DockerExecutionService {
         
         int exitCode = process.waitFor();
         if (exitCode == 0) {
+            tailLogs(projectId, projectDir);
             emitLog(projectId, "[SYSTEM] Container built. Waiting for app server on " + getPreviewUrl(projectId) + "...");
             boolean ready = waitForSandboxServer(projectId);
-            projectStatus.put(projectId, "RUNNING");
             if (ready) {
+                projectStatus.put(projectId, "RUNNING");
                 emitLog(projectId, "[SYSTEM] Container started successfully. Starting log tail...");
             } else {
-                emitLog(projectId, "[WARNING] Container is running, but the app server did not respond before the readiness timeout. Check Problems and logs.");
+                projectStatus.put(projectId, "FAILED");
+                emitLog(projectId, "[ERROR] App server did not respond before the readiness timeout. Check Problems and logs.");
             }
-            tailLogs(projectId, projectDir);
         } else {
             projectStatus.put(projectId, "FAILED");
             emitLog(projectId, "[ERROR] Container failed to start (exit code " + exitCode + ")");
@@ -175,6 +176,8 @@ public class DockerExecutionService {
         Files.createDirectories(projectDir);
 
         ProjectCode composeFile = null;
+        Path pomPath = null;
+        List<Path> springConfigPaths = new ArrayList<>();
 
         for (ProjectCode file : files) {
             Path filePath = projectDir.resolve(file.getFilePath());
@@ -186,11 +189,17 @@ public class DockerExecutionService {
             }
 
             if (file.getFilePath().endsWith("application.yml") || file.getFilePath().endsWith("application.yaml")) {
+                springConfigPaths.add(filePath);
                 normalizeSpringYaml(projectId, filePath);
             }
 
             if (file.getFilePath().endsWith("application.properties")) {
+                springConfigPaths.add(filePath);
                 normalizeSpringProperties(projectId, filePath);
+            }
+
+            if (file.getFilePath().equals("pom.xml") || file.getFilePath().endsWith("/pom.xml")) {
+                pomPath = filePath;
             }
             
             if (file.getFilePath().equals("docker-compose.yml")) {
@@ -199,7 +208,9 @@ public class DockerExecutionService {
         }
 
         if (composeFile != null) {
-            injectTraefikAndLimits(projectDir.resolve("docker-compose.yml"), projectId);
+            Path composePath = projectDir.resolve("docker-compose.yml");
+            injectTraefikAndLimits(composePath, projectId);
+            repairSpringDatasource(projectId, composePath, springConfigPaths, pomPath);
         } else {
             emitLog(projectId, "[WARNING] No docker-compose.yml found in project files.");
         }
@@ -258,6 +269,202 @@ public class DockerExecutionService {
             Files.writeString(configPath, normalized);
             emitLog(projectId, "[SYSTEM] Set spring.jpa.open-in-view=false in " + projectDirRelativeName(configPath) + ".");
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void repairSpringDatasource(String projectId, Path composePath, List<Path> springConfigPaths, Path pomPath) throws IOException {
+        DbService db = findPrimaryDbService(composePath);
+        if (db == null) return;
+
+        if (springConfigPaths.isEmpty()) {
+            Path projectRoot = pomPath != null && pomPath.getParent() != null ? pomPath.getParent() : composePath.getParent();
+            Path configPath = projectRoot.resolve("src/main/resources/application.yml");
+            Files.createDirectories(configPath.getParent());
+            Files.writeString(configPath, "spring:\n  jpa:\n    open-in-view: false\n");
+            springConfigPaths.add(configPath);
+            emitLog(projectId, "[SYSTEM] Created missing Spring application.yml for Docker datasource configuration.");
+        }
+
+        for (Path configPath : springConfigPaths) {
+            if (configPath.toString().endsWith(".properties")) {
+                repairSpringDatasourceProperties(projectId, configPath, db);
+            } else {
+                repairSpringDatasourceYaml(projectId, configPath, db);
+            }
+        }
+
+        if (pomPath != null) {
+            ensureJdbcDriverDependency(projectId, pomPath, db);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private DbService findPrimaryDbService(Path composePath) throws IOException {
+        Yaml yaml = new Yaml();
+        Map<String, Object> data;
+        try (InputStream in = Files.newInputStream(composePath)) {
+            Object loaded = yaml.load(in);
+            data = loaded instanceof Map<?, ?> ? (Map<String, Object>) loaded : null;
+        }
+        if (data == null || !(data.get("services") instanceof Map<?, ?> servicesRaw)) return null;
+
+        Map<String, Object> services = (Map<String, Object>) servicesRaw;
+        List<String> candidates = new ArrayList<>();
+        String appServiceName = selectAppServiceName(services);
+        if (services.get(appServiceName) instanceof Map<?, ?> appService) {
+            candidates.addAll(dependsOnServiceNames(((Map<String, Object>) appService).get("depends_on")));
+        }
+        candidates.addAll(services.keySet());
+
+        Set<String> visited = new LinkedHashSet<>(candidates);
+        for (String serviceName : visited) {
+            if (serviceName.equals(appServiceName)) continue;
+            DbService db = dbServiceFromComposeService(serviceName, services.get(serviceName));
+            if (db != null) return db;
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private DbService dbServiceFromComposeService(String serviceName, Object rawService) {
+        if (!(rawService instanceof Map<?, ?> serviceRaw)) return null;
+        Map<String, Object> service = (Map<String, Object>) serviceRaw;
+        String image = String.valueOf(service.getOrDefault("image", "")).toLowerCase(Locale.ROOT);
+        if (image.contains("postgres")) {
+            Map<String, String> env = parseEnvironment(service.get("environment"));
+            String username = env.getOrDefault("POSTGRES_USER", "postgres");
+            String password = env.getOrDefault("POSTGRES_PASSWORD", "postgres");
+            String database = env.getOrDefault("POSTGRES_DB", username);
+            return new DbService("postgres", serviceName, database, username, password);
+        }
+        if (image.contains("mysql") || image.contains("mariadb")) {
+            Map<String, String> env = parseEnvironment(service.get("environment"));
+            String username = env.getOrDefault("MYSQL_USER", "root");
+            String password = env.getOrDefault("MYSQL_PASSWORD", env.getOrDefault("MYSQL_ROOT_PASSWORD", "password"));
+            String database = env.getOrDefault("MYSQL_DATABASE", "app");
+            return new DbService("mysql", serviceName, database, username, password);
+        }
+        return null;
+    }
+
+    private List<String> dependsOnServiceNames(Object rawDependsOn) {
+        if (rawDependsOn instanceof Map<?, ?> map) {
+            return map.keySet().stream().map(String::valueOf).toList();
+        }
+        if (rawDependsOn instanceof List<?> list) {
+            return list.stream().map(String::valueOf).toList();
+        }
+        return List.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> parseEnvironment(Object rawEnvironment) {
+        Map<String, String> env = new HashMap<>();
+        if (rawEnvironment instanceof Map<?, ?> map) {
+            map.forEach((key, value) -> env.put(String.valueOf(key), String.valueOf(value)));
+        } else if (rawEnvironment instanceof List<?> list) {
+            for (Object item : list) {
+                String value = String.valueOf(item);
+                int idx = value.indexOf('=');
+                if (idx > 0) {
+                    env.put(value.substring(0, idx), value.substring(idx + 1));
+                }
+            }
+        }
+        return env;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void repairSpringDatasourceYaml(String projectId, Path configPath, DbService db) throws IOException {
+        Yaml yaml = new Yaml();
+        Map<String, Object> data;
+        try (InputStream in = Files.newInputStream(configPath)) {
+            Object loaded = yaml.load(in);
+            data = loaded instanceof Map<?, ?> ? (Map<String, Object>) loaded : new LinkedHashMap<>();
+        }
+
+        Map<String, Object> spring = ensureMap(data, "spring");
+        Map<String, Object> datasource = ensureMap(spring, "datasource");
+        boolean changed = putIfMissing(datasource, "url", db.jdbcUrl());
+        changed |= putIfMissing(datasource, "username", db.username());
+        changed |= putIfMissing(datasource, "password", db.password());
+        changed |= putIfMissing(datasource, "driver-class-name", db.driverClassName());
+
+        Map<String, Object> jpa = ensureMap(spring, "jpa");
+        changed |= putIfMissing(jpa, "open-in-view", false);
+        changed |= putIfMissing(jpa, "database-platform", db.hibernateDialect());
+        Map<String, Object> hibernate = ensureMap(jpa, "hibernate");
+        changed |= putIfMissing(hibernate, "ddl-auto", "update");
+
+        if (changed) {
+            try (Writer writer = Files.newBufferedWriter(configPath)) {
+                yaml.dump(data, writer);
+            }
+            emitLog(projectId, "[SYSTEM] Added Docker datasource settings for " + db.serviceName() + " in " + projectDirRelativeName(configPath) + ".");
+        }
+    }
+
+    private void repairSpringDatasourceProperties(String projectId, Path configPath, DbService db) throws IOException {
+        String content = Files.readString(configPath);
+        String normalized = content;
+        normalized = ensureProperty(normalized, "spring.datasource.url", db.jdbcUrl());
+        normalized = ensureProperty(normalized, "spring.datasource.username", db.username());
+        normalized = ensureProperty(normalized, "spring.datasource.password", db.password());
+        normalized = ensureProperty(normalized, "spring.datasource.driver-class-name", db.driverClassName());
+        normalized = ensureProperty(normalized, "spring.jpa.database-platform", db.hibernateDialect());
+        normalized = ensureProperty(normalized, "spring.jpa.hibernate.ddl-auto", "update");
+        normalized = ensureProperty(normalized, "spring.jpa.open-in-view", "false");
+
+        if (!normalized.equals(content)) {
+            Files.writeString(configPath, normalized);
+            emitLog(projectId, "[SYSTEM] Added Docker datasource settings for " + db.serviceName() + " in " + projectDirRelativeName(configPath) + ".");
+        }
+    }
+
+    private boolean putIfMissing(Map<String, Object> map, String key, Object value) {
+        Object existing = map.get(key);
+        if (existing == null || existing.toString().isBlank()) {
+            map.put(key, value);
+            return true;
+        }
+        return false;
+    }
+
+    private String ensureProperty(String content, String key, String value) {
+        Pattern pattern = Pattern.compile("^" + Pattern.quote(key) + "\\s*=.*$", Pattern.MULTILINE);
+        if (pattern.matcher(content).find()) return content;
+        return content.stripTrailing() + System.lineSeparator() + key + "=" + value + System.lineSeparator();
+    }
+
+    private void ensureJdbcDriverDependency(String projectId, Path pomPath, DbService db) throws IOException {
+        String content = Files.readString(pomPath);
+        String dependency;
+        String marker;
+        if (db.engine().equals("postgres")) {
+            marker = "org.postgresql";
+            dependency = """
+                    <dependency>
+                        <groupId>org.postgresql</groupId>
+                        <artifactId>postgresql</artifactId>
+                        <scope>runtime</scope>
+                    </dependency>
+                """;
+        } else {
+            marker = "mysql-connector-j";
+            dependency = """
+                    <dependency>
+                        <groupId>com.mysql</groupId>
+                        <artifactId>mysql-connector-j</artifactId>
+                        <scope>runtime</scope>
+                    </dependency>
+                """;
+        }
+
+        if (content.contains(marker) || !content.contains("</dependencies>")) return;
+
+        String updated = content.replace("</dependencies>", dependency + "\n    </dependencies>");
+        Files.writeString(pomPath, updated);
+        emitLog(projectId, "[SYSTEM] Added " + db.engine() + " JDBC driver dependency to " + projectDirRelativeName(pomPath) + ".");
     }
 
     @SuppressWarnings("unchecked")
@@ -428,5 +635,25 @@ public class DockerExecutionService {
         return !lower.equals("transfer-encoding")
             && !lower.equals("connection")
             && !lower.equals("content-length");
+    }
+
+    private record DbService(String engine, String serviceName, String database, String username, String password) {
+        private String jdbcUrl() {
+            if (engine.equals("postgres")) {
+                return "jdbc:postgresql://" + serviceName + ":5432/" + database;
+            }
+            return "jdbc:mysql://" + serviceName + ":3306/" + database
+                + "?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false";
+        }
+
+        private String driverClassName() {
+            return engine.equals("postgres") ? "org.postgresql.Driver" : "com.mysql.cj.jdbc.Driver";
+        }
+
+        private String hibernateDialect() {
+            return engine.equals("postgres")
+                ? "org.hibernate.dialect.PostgreSQLDialect"
+                : "org.hibernate.dialect.MySQLDialect";
+        }
     }
 }
