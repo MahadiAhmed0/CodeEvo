@@ -36,6 +36,7 @@ import { toast } from 'sonner'
 import { useDiagramStore } from '@/lib/store'
 import { useAgentStore } from '@/lib/agent-store'
 import { stompClient } from '@/lib/websocket'
+import { LogLine } from '@/components/log-line'
 
 interface APITesterProps {
   nodes: Node[]
@@ -74,7 +75,7 @@ const MONOLITH_PORT = 8080
 const SAMPLE_UUID = '11111111-1111-4111-8111-111111111111'
 
 export function APITester({ nodes, projectId }: APITesterProps) {
-  const { setShowProjectSettings, dockerStatus, dockerProblems, setDockerStatus, setDockerLogs, previewUrl, setPreviewUrl } = useDiagramStore()
+  const { setShowProjectSettings, dockerStatus, dockerLogs, dockerProblems, setDockerStatus, setDockerLogs, previewUrl, setPreviewUrl } = useDiagramStore()
   const isAgentConnected = useAgentStore((state) => state.isConnected)
   const serviceNodes = nodes.filter((n) => 
     (n.data.type === 'api' && n.data.gatewayConfig?.routes?.length) || 
@@ -1205,23 +1206,13 @@ export function APITester({ nodes, projectId }: APITesterProps) {
               </div>
             )
           ) : bottomTab === 'console' ? (
-            <>
-              <div className="flex items-start gap-2">
-                <span className="text-blue-400">[INFO]</span>
-                <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-                <span>API Workspace initialized successfully.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-emerald-400"><CheckCircle2 size={14} /></span>
-                <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-                <span className="text-emerald-400">{activeEndpoints.length} endpoints loaded from {endpointSourceLabel}.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-blue-400">[SYSTEM]</span>
-                <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-                <span>Ready for testing. Select an endpoint or run Auto-Test All.</span>
-              </div>
-            </>
+            <div className="space-y-1">
+              {dockerLogs.length === 0 ? (
+                <div className="text-gray-500 italic">Run the Docker sandbox to see build and server logs here.</div>
+              ) : (
+                dockerLogs.map((log, i) => <LogLine key={i} line={log} />)
+              )}
+            </div>
           ) : bottomTab === 'problems' ? (
             <div className="space-y-2">
               {dockerProblems.length === 0 ? (
