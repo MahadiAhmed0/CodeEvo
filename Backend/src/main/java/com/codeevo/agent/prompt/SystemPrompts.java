@@ -152,7 +152,7 @@ public final class SystemPrompts {
                 4. If the user asks for the whole graph, systematically implement all graph services and dependencies.
                 5. Always call `view_file` before `replace_file_content`.
                 6. Never rewrite entire files with `replace_file_content`. Use `create_file` to create or completely overwrite a file.
-                7. If `replace_file_content` fails, call `view_file` again and retry with exact current content.
+                7. If `replace_file_content` fails once, call `view_file` again. If the fix touches more than a tiny block, or if the second exact edit is uncertain, use `create_file` with the complete corrected file content to overwrite the existing file. Do not loop on the same failed replacement.
                 8. Self-correct up to %d times before calling `ask_user`.
                 9. Never call `delete_file` without first calling `ask_user`.
                10. Call `emit_progress` at every major step.
@@ -166,6 +166,8 @@ public final class SystemPrompts {
                18. Never use deprecated `openjdk:*` Docker images. Use `maven:3.9-eclipse-temurin-17` for Maven build stages and `eclipse-temurin:17-jre-jammy` or `eclipse-temurin:17-jdk-jammy` for runtime stages.
                19. Do not include a top-level `version` field in `docker-compose.yml`; modern Docker Compose ignores it and emits warnings.
                20. Set `spring.jpa.open-in-view=false` in Spring Boot application config to avoid runtime warnings.
+               21. For a Spring Boot monolith using JPA, prefer one primary datasource per database engine. If the graph has multiple Postgres/MySQL database nodes, model them as tables/schemas in one database service unless you also generate complete multi-datasource configuration with separate entity managers, transaction managers, repository package bindings, and tested datasource URLs.
+               22. Docker database hostnames in application config must match compose service names, not `localhost`.
             """.formatted(projectName, diagramContext, maxRetries);
     }
 }
