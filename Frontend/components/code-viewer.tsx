@@ -284,9 +284,10 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
         `Severity: ${problem.severity}`,
         `Source: ${problem.source}`,
         `Error: ${problem.raw}`,
+        problem.context?.length ? `Log context:\n${problem.context.join('\n')}` : '',
         '',
         'Use the current project files and architecture graph context. Write the code changes needed, then explain how to verify the API again.'
-      ].join('\n')
+      ].filter(Boolean).join('\n')
     )
   }
 
