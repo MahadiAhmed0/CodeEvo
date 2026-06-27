@@ -64,11 +64,13 @@ interface TestableEndpoint {
   method: string
   path: string
   target: string
-  source: 'openapi' | 'graph'
+  source: 'openapi' | 'controller' | 'graph'
   summary?: string
+  pathParams?: Record<string, string>
 }
 
 const MONOLITH_PORT = 8080
+const SAMPLE_UUID = '11111111-1111-4111-8111-111111111111'
 
 export function APITester({ nodes, projectId }: APITesterProps) {
   const { setShowProjectSettings, dockerStatus, dockerProblems, setDockerStatus, setDockerLogs, previewUrl, setPreviewUrl } = useDiagramStore()
@@ -107,6 +109,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
     return base.replace(/\/$/, '')
   }, [dockerStatus, previewUrl, mainGatewayPort])
   const [openApiEndpoints, setOpenApiEndpoints] = useState<TestableEndpoint[]>([])
+  const [controllerEndpoints, setControllerEndpoints] = useState<TestableEndpoint[]>([])
   const [isDiscoveringOpenApi, setIsDiscoveringOpenApi] = useState(false)
 
   const graphEndpoints = useMemo<TestableEndpoint[]>(() => {
@@ -135,8 +138,15 @@ export function APITester({ nodes, projectId }: APITesterProps) {
     })
   }, [serviceNodes])
 
-  const activeEndpoints = openApiEndpoints.length > 0 ? openApiEndpoints : graphEndpoints
-  const endpointSourceLabel = openApiEndpoints.length > 0 ? 'OpenAPI' : 'Graph'
+  const activeEndpoints = openApiEndpoints.length > 0
+    ? openApiEndpoints
+    : controllerEndpoints.length > 0
+      ? controllerEndpoints
+      : graphEndpoints
+  const endpointSourceLabel = openApiEndpoints.length > 0 ? 'OpenAPI' : controllerEndpoints.length > 0 ? 'Controllers' : 'Graph'
+  const discoveredEndpoints = openApiEndpoints.length > 0 ? openApiEndpoints : controllerEndpoints
+  const discoveredNodeId = openApiEndpoints.length > 0 ? 'openapi' : 'controllers'
+  const discoveredTitle = openApiEndpoints.length > 0 ? 'OpenAPI Controllers' : 'Scanned Controllers'
 
   const discoverOpenApi = useCallback(async (silent = false) => {
     if (!projectId || dockerStatus !== 'RUNNING') {
@@ -146,7 +156,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
 
     setIsDiscoveringOpenApi(true)
     try {
-      const res = await fetch(`${sandboxBaseUrl}/v3/api-docs`, { cache: 'no-store' })
+      const res = await dockerApi.proxySandboxRequest(projectId, '/v3/api-docs', { cache: 'no-store' })
       if (!res.ok) throw new Error(`OpenAPI returned ${res.status}`)
       const spec = await res.json()
       const paths = spec?.paths || {}
@@ -163,30 +173,65 @@ export function APITester({ nodes, projectId }: APITesterProps) {
             target: operation?.tags?.[0] || 'Controller',
             source: 'openapi',
             summary: operation?.summary || operation?.operationId,
+            pathParams: extractOpenApiPathParams(operation),
           })
         })
       })
 
       setOpenApiEndpoints(discovered)
+      setControllerEndpoints([])
       if (discovered.length > 0 && (!endpoint || endpoint === '/api/health')) {
         setSelectedNodeId('openapi')
         setMethod(discovered[0].method)
-        setEndpoint(discovered[0].path)
+        setEndpoint(materializeEndpointPath(discovered[0].path, discovered[0].pathParams))
       }
       if (!silent && discovered.length > 0) toast.success(`Discovered ${discovered.length} API endpoints`)
     } catch (err) {
       setOpenApiEndpoints([])
-      if (!silent) toast.error('OpenAPI docs unavailable. Using graph routes.')
+      try {
+        const scanned = await dockerApi.discoverSandboxEndpoints(projectId)
+        const discovered = scanned.map((apiEndpoint) => ({
+          id: apiEndpoint.id,
+          method: apiEndpoint.method,
+          path: apiEndpoint.path,
+          target: apiEndpoint.filePath || 'Controller',
+          source: 'controller' as const,
+          summary: apiEndpoint.summary,
+        }))
+        setControllerEndpoints(discovered)
+        if (discovered.length > 0 && (!endpoint || endpoint === '/api/health')) {
+          setSelectedNodeId('controllers')
+          setMethod(discovered[0].method)
+          setEndpoint(materializeEndpointPath(discovered[0].path))
+        }
+        if (!silent && discovered.length > 0) toast.success(`Scanned ${discovered.length} controller endpoints`)
+        if (!silent && discovered.length === 0) toast.error('OpenAPI docs unavailable. Using graph routes.')
+      } catch {
+        setControllerEndpoints([])
+        if (!silent) toast.error('OpenAPI docs unavailable. Using graph routes.')
+      }
     } finally {
       setIsDiscoveringOpenApi(false)
     }
-  }, [projectId, dockerStatus, sandboxBaseUrl, endpoint])
+  }, [projectId, dockerStatus, endpoint])
 
   useEffect(() => {
     if (dockerStatus === 'RUNNING') {
       discoverOpenApi(true)
     } else {
       setOpenApiEndpoints([])
+      if (projectId) {
+        dockerApi.discoverSandboxEndpoints(projectId)
+          .then((scanned) => setControllerEndpoints(scanned.map((apiEndpoint) => ({
+            id: apiEndpoint.id,
+            method: apiEndpoint.method,
+            path: apiEndpoint.path,
+            target: apiEndpoint.filePath || 'Controller',
+            source: 'controller' as const,
+            summary: apiEndpoint.summary,
+          }))))
+          .catch(() => setControllerEndpoints([]))
+      }
     }
   }, [dockerStatus, discoverOpenApi])
 
@@ -218,17 +263,17 @@ export function APITester({ nodes, projectId }: APITesterProps) {
 
   const selectRoute = useCallback((nodeId: string, route: any) => {
     setSelectedNodeId(nodeId)
-    setEndpoint(route.pathPrefix || '/api/endpoint')
+    setEndpoint(materializeEndpointPath(route.pathPrefix || route.path || '/api/endpoint', route.pathParams))
     setMethod(route.methods && route.methods.length > 0 && route.methods[0] !== 'ALL' ? route.methods[0] : 'GET')
   }, [])
 
   const handleSendRequest = async () => {
     setLoading(true)
     const startTime = Date.now()
+    const requestEndpoint = resolveRequestEndpoint(endpoint, method)
     try {
-      const url = `${sandboxBaseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`
-
-      const res = await fetch(url, {
+      if (!projectId) throw new Error('No project selected')
+      const res = await dockerApi.proxySandboxRequest(projectId, requestEndpoint, {
         method,
         headers,
         body: method !== 'GET' ? body : undefined,
@@ -250,7 +295,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
       setHistory(prev => [{
         id: crypto.randomUUID(),
         method,
-        endpoint,
+        endpoint: requestEndpoint,
         status: res.status,
         time: new Date().toLocaleTimeString(),
         duration: `${duration}ms`,
@@ -267,7 +312,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
       setHistory(prev => [{
         id: crypto.randomUUID(),
         method,
-        endpoint,
+        endpoint: requestEndpoint,
         status: 'ERR',
         time: new Date().toLocaleTimeString(),
         duration: `${duration}ms`,
@@ -328,7 +373,8 @@ export function APITester({ nodes, projectId }: APITesterProps) {
   const handleRunAllTests = async () => {
     const allTests = activeEndpoints.map((apiEndpoint) => ({
       id: crypto.randomUUID(),
-      endpoint: apiEndpoint.path,
+      endpoint: materializeEndpointPath(apiEndpoint.path, apiEndpoint.pathParams),
+      template: apiEndpoint.path,
       method: apiEndpoint.method,
       source: apiEndpoint.source,
       running: false,
@@ -350,14 +396,14 @@ export function APITester({ nodes, projectId }: APITesterProps) {
 
       const startTime = Date.now()
       try {
-        const url = `${sandboxBaseUrl}${test.endpoint.startsWith('/') ? test.endpoint : '/' + test.endpoint}`
-        const res = await fetch(url, {
+        if (!projectId) throw new Error('No project selected')
+        const res = await dockerApi.proxySandboxRequest(projectId, test.endpoint, {
           method: test.method,
           headers: { 'Content-Type': 'application/json' },
           body: mockBody ? JSON.stringify(mockBody) : undefined
         })
         const duration = Date.now() - startTime
-        const passed = res.status >= 200 && res.status < 400
+        const passed = isExpectedSmokeStatus(test.method, test.template, res.status)
 
         setTestSuiteResults(prev => prev.map((t, idx) => idx === i ? { 
           ...t, 
@@ -398,6 +444,65 @@ export function APITester({ nodes, projectId }: APITesterProps) {
     if (typeof status === 'number' && status >= 200 && status < 300) return 'text-emerald-400'
     if (typeof status === 'number' && status >= 400) return 'text-red-400'
     return 'text-amber-400'
+  }
+
+  function extractOpenApiPathParams(operation: any): Record<string, string> {
+    const params: Record<string, string> = {}
+    ;(operation?.parameters || [])
+      .filter((param: any) => param?.in === 'path' && param?.name)
+      .forEach((param: any) => {
+        params[param.name] = sampleValueForPathParam(param.name, param.schema)
+      })
+    return params
+  }
+
+  function sampleValueForPathParam(name: string, schema?: any): string {
+    const normalized = name.toLowerCase()
+    const format = String(schema?.format || '').toLowerCase()
+    const type = String(schema?.type || '').toLowerCase()
+    if (format === 'uuid' || normalized.endsWith('id') || normalized === 'id') return SAMPLE_UUID
+    if (type === 'integer' || type === 'number') return '1'
+    if (normalized.includes('email')) return 'test@example.com'
+    if (normalized.includes('slug')) return 'sample-slug'
+    return 'sample'
+  }
+
+  function materializeEndpointPath(path: string, pathParams: Record<string, string> = {}): string {
+    return path.replace(/\{([^}]+)\}/g, (_, rawName) => {
+      const name = String(rawName).trim()
+      return pathParams[name] || sampleValueForPathParam(name)
+    })
+  }
+
+  function resolveRequestEndpoint(rawEndpoint: string, requestMethod: string): string {
+    if (rawEndpoint.includes('{')) return materializeEndpointPath(rawEndpoint)
+
+    const matchingTemplate = activeEndpoints.find((apiEndpoint) => {
+      if (apiEndpoint.method !== requestMethod || !apiEndpoint.path.includes('{')) return false
+      return pathMatchesTemplate(rawEndpoint, apiEndpoint.path)
+    })
+
+    if (matchingTemplate) {
+      return materializeEndpointPath(matchingTemplate.path, matchingTemplate.pathParams)
+    }
+
+    return rawEndpoint
+  }
+
+  function pathMatchesTemplate(path: string, template: string): boolean {
+    const cleanPath = path.split('?')[0]
+    const pathParts = cleanPath.split('/').filter(Boolean)
+    const templateParts = template.split('/').filter(Boolean)
+    if (pathParts.length !== templateParts.length) return false
+    return templateParts.every((part, index) => part.startsWith('{') && part.endsWith('}') || part === pathParts[index])
+  }
+
+  function isExpectedSmokeStatus(requestMethod: string, template: string, status: number): boolean {
+    if (status >= 200 && status < 400) return true
+    const hasPathParam = template.includes('{') && template.includes('}')
+    if (requestMethod === 'GET' && hasPathParam && status === 404) return true
+    if (requestMethod === 'DELETE' && hasPathParam && status === 404) return true
+    return false
   }
 
   return (
@@ -486,9 +591,9 @@ export function APITester({ nodes, projectId }: APITesterProps) {
                 className="w-full appearance-none pl-7 pr-8 py-1.5 bg-white/[0.04] border border-white/[0.08] hover:border-white/[0.12] rounded-lg text-[11px] font-medium text-white/70 outline-none focus:border-purple-500/40 transition-all cursor-pointer"
               >
                 <option value="" disabled className="bg-[#0d1220]">Select a route source...</option>
-                {openApiEndpoints.length > 0 && (
-                  <option value="openapi" className="bg-[#0d1220] text-white">
-                    Discovered Controllers
+                {discoveredEndpoints.length > 0 && (
+                  <option value={discoveredNodeId} className="bg-[#0d1220] text-white">
+                    {discoveredTitle}
                   </option>
                 )}
                 {serviceNodes.map((n) => (
@@ -504,20 +609,21 @@ export function APITester({ nodes, projectId }: APITesterProps) {
 
           {/* Routes tree */}
           <div className="flex-1 overflow-y-auto py-1">
-            {openApiEndpoints.length > 0 ? (
+            {discoveredEndpoints.length > 0 ? (
               <div>
                 <div
                   className="flex items-center gap-2 py-1.5 px-3 cursor-pointer text-[13px] text-gray-300 hover:text-white hover:bg-white/[0.04] select-none"
-                  onClick={() => toggleGatewayExpand('openapi')}
+                  onClick={() => toggleGatewayExpand(discoveredNodeId)}
                 >
-                  {expandedServices.openapi !== false
+                  {expandedServices[discoveredNodeId] !== false
                     ? <FolderOpen size={14} className="text-purple-400" />
                     : <Folder size={14} className="text-purple-400/70" />
                   }
-                  <span className="flex-1 truncate">Discovered Controllers</span>
+                  <span className="flex-1 truncate">{discoveredTitle}</span>
                 </div>
-                {expandedServices.openapi !== false && openApiEndpoints.map((route) => {
-                  const isActive = selectedNodeId === 'openapi' && endpoint === route.path && method === route.method
+                {expandedServices[discoveredNodeId] !== false && discoveredEndpoints.map((route) => {
+                  const routeEndpoint = materializeEndpointPath(route.path, route.pathParams)
+                  const isActive = selectedNodeId === discoveredNodeId && endpoint === routeEndpoint && method === route.method
                   const mc = methodColors[route.method] || methodColors.GET
                   return (
                     <div
@@ -529,8 +635,8 @@ export function APITester({ nodes, projectId }: APITesterProps) {
                       }`}
                       style={{ paddingLeft: '28px' }}
                       onClick={() => {
-                        setSelectedNodeId('openapi')
-                        setEndpoint(route.path)
+                        setSelectedNodeId(discoveredNodeId)
+                        setEndpoint(routeEndpoint)
                         setMethod(route.method)
                       }}
                     >
@@ -576,7 +682,8 @@ export function APITester({ nodes, projectId }: APITesterProps) {
                     <span className="flex-1 truncate">{gw.data.name}</span>
                   </div>
                   {isExpanded && routes.map((route: any, idx: number) => {
-                    const isActive = selectedNodeId === gw.id && endpoint === route.path && method === route.method
+                    const routeEndpoint = materializeEndpointPath(route.path, route.pathParams)
+                    const isActive = selectedNodeId === gw.id && endpoint === routeEndpoint && method === route.method
                     const mc = methodColors[route.method] || methodColors.GET
                     return (
                       <div
@@ -589,7 +696,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
                         style={{ paddingLeft: '28px' }}
                         onClick={() => {
                           setSelectedNodeId(gw.id)
-                          setEndpoint(route.path)
+                          setEndpoint(routeEndpoint)
                           setMethod(route.method)
                         }}
                       >
@@ -657,7 +764,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleSendRequest}
-                  disabled={loading || !endpoint || (!selectedNode && openApiEndpoints.length === 0)}
+                  disabled={loading || !endpoint || activeEndpoints.length === 0}
                   className="shrink-0 px-4 py-2 bg-white/[0.06] hover:bg-white/[0.1] text-white rounded-lg text-[12px] font-semibold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/[0.08]"
                 >
                   {loading ? (
