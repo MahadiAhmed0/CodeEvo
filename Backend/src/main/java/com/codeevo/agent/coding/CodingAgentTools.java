@@ -218,6 +218,12 @@ public class CodingAgentTools {
             // Sanitize: strip any HTML tags that may have been injected by the LLM before saving
             modified = stripHtml(modified);
 
+            // Save updated content back to MongoDB
+            file.setContent(modified);
+            file.setSizeBytes((long) modified.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+            file.setUpdatedAt(Instant.now());
+            codeRepository.save(file);
+
             // Emit diff event for the frontend to display
             String approvalToken = UUID.randomUUID().toString();
             DiffReadyPayload diff = DiffReadyPayload.builder()
@@ -229,12 +235,6 @@ public class CodingAgentTools {
                     .sessionId(sessionId).projectId(projectId).agentType(AgentType.CODING)
                     .type(AgentEventType.DIFF_READY).payload(diff).build();
             gateway.emitDiff(userId, diffEvent, diff);
-
-            // Save updated content back to MongoDB
-            file.setContent(modified);
-            file.setSizeBytes((long) modified.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
-            file.setUpdatedAt(Instant.now());
-            codeRepository.save(file);
 
             log.info("Updated file in project {}: {}", projectId, filePath);
             return ToolResult.ok("Successfully modified " + filePath + ". Change: " + changeDescription);
@@ -265,6 +265,12 @@ public class CodingAgentTools {
                 ProjectCode file = existing.get();
                 String original = file.getContent() != null ? file.getContent() : "";
 
+                file.setContent(cleanContent);
+                file.setLanguage(detectedLanguage);
+                file.setSizeBytes((long) cleanContent.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+                file.setUpdatedAt(Instant.now());
+                codeRepository.save(file);
+
                 DiffReadyPayload diff = DiffReadyPayload.builder()
                         .filePath(filePath).originalContent(original).modifiedContent(cleanContent)
                         .changeDescription("Overwrite: " + changeDescription)
@@ -275,12 +281,6 @@ public class CodingAgentTools {
                         .sessionId(sessionId).projectId(projectId).agentType(AgentType.CODING)
                         .type(AgentEventType.DIFF_READY).payload(diff).build();
                 gateway.emitDiff(userId, diffEvent, diff);
-
-                file.setContent(cleanContent);
-                file.setLanguage(detectedLanguage);
-                file.setSizeBytes((long) cleanContent.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
-                file.setUpdatedAt(Instant.now());
-                codeRepository.save(file);
 
                 log.info("Overwrote file in project {}: {}", projectId, filePath);
                 return ToolResult.ok("Overwrote existing file: " + filePath + ". Change: " + changeDescription);
