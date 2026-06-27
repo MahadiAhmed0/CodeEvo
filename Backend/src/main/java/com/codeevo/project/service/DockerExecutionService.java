@@ -167,12 +167,7 @@ public class DockerExecutionService {
     private void exportProject(String projectId) throws IOException {
         List<ProjectCode> files = codeRepository.findByProjectIdOrderByFilePathAsc(projectId);
         Path projectDir = Paths.get(WORKSPACE_DIR, projectId);
-        if (Files.exists(projectDir)) {
-            Files.walk(projectDir)
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete);
-        }
+        deleteProjectDir(projectId, projectDir);
         Files.createDirectories(projectDir);
 
         ProjectCode composeFile = null;
@@ -207,6 +202,12 @@ public class DockerExecutionService {
             }
         }
 
+        if (pomPath != null) {
+            ensureSpringSecurityDependency(projectId, pomPath, projectDir);
+        }
+
+        fixMissingJavaImports(projectId, projectDir);
+
         if (composeFile != null) {
             Path composePath = projectDir.resolve("docker-compose.yml");
             injectTraefikAndLimits(composePath, projectId);
@@ -224,9 +225,15 @@ public class DockerExecutionService {
             .replace("FROM openjdk:17-jre-slim", "FROM eclipse-temurin:17-jre-jammy")
             .replace("FROM openjdk:17", "FROM eclipse-temurin:17-jdk-jammy");
 
+        // Build stages using JDK images need Maven installed — replace with maven image
+        normalized = normalized.replaceAll("(?im)^FROM\\s+eclipse-temurin:17-jdk-jammy\\s+AS\\s+(\\S+)", "FROM maven:3.9-eclipse-temurin-17 AS $1");
+
+        // If ./mvnw is referenced but mvnw file may be missing, replace with mvn (Maven is on PATH in the maven image)
+        normalized = normalized.replace("./mvnw", "mvn");
+
         if (!normalized.equals(content)) {
             Files.writeString(dockerfilePath, normalized);
-            emitLog(projectId, "[WARNING] Replaced deprecated Docker base image in " + projectDirRelativeName(dockerfilePath) + ".");
+            emitLog(projectId, "[SYSTEM] Normalized Dockerfile build stage to use maven:3.9-eclipse-temurin-17 for Maven support.");
         }
     }
 
@@ -586,6 +593,233 @@ public class DockerExecutionService {
         }
 
         return false;
+    }
+
+    private void deleteProjectDir(String projectId, Path projectDir) {
+        if (!Files.exists(projectDir)) return;
+        int maxRetries = 5;
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                Files.walk(projectDir)
+                    .sorted(Comparator.reverseOrder())
+                    .forEach(p -> {
+                        try {
+                            File f = p.toFile();
+                            if (f.isDirectory()) {
+                                f.delete();
+                            } else {
+                                f.setWritable(true);
+                                Files.deleteIfExists(p);
+                            }
+                        } catch (IOException ignored) {}
+                    });
+                if (!Files.exists(projectDir)) return;
+            } catch (IOException ignored) {}
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        emitLog(projectId, "[WARNING] Could not fully clean project directory after " + maxRetries + " attempts. Some files may remain.");
+    }
+
+    private void ensureSpringSecurityDependency(String projectId, Path pomPath, Path projectDir) throws IOException {
+        String pomContent = Files.readString(pomPath);
+        boolean hasSecurityDep = pomContent.contains("spring-boot-starter-security");
+        boolean hasSecurityConfig = false;
+        String mainAppPackage = null;
+        boolean needsSecurity = false;
+
+        try (var files = Files.walk(projectDir)) {
+            for (var p : (Iterable<Path>) files::iterator) {
+                if (!p.toString().endsWith(".java")) continue;
+                String src = Files.readString(p);
+                if (src.contains("org.springframework.security")) {
+                    needsSecurity = true;
+                }
+                if (src.contains("SecurityConfig") || src.contains("WebSecurityConfigurer") || src.contains("SecurityFilterChain")) {
+                    hasSecurityConfig = true;
+                }
+                if (src.contains("@SpringBootApplication") || src.contains("@EnableAutoConfiguration")) {
+                    var m = Pattern.compile("^package\\s+([\\w.]+)\\s*;", Pattern.MULTILINE).matcher(src);
+                    if (m.find()) mainAppPackage = m.group(1);
+                }
+            }
+        }
+
+        if (!needsSecurity) return;
+
+        if (!hasSecurityDep) {
+            String dep = """
+                        <dependency>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-starter-security</artifactId>
+                        </dependency>
+                    """;
+            pomContent = pomContent.replace("</dependencies>", dep + "\n    </dependencies>");
+            Files.writeString(pomPath, pomContent);
+            emitLog(projectId, "[SYSTEM] Auto-injected spring-boot-starter-security into pom.xml (detected Spring Security imports in source files).");
+        }
+
+        if (!hasSecurityConfig && mainAppPackage != null) {
+            String configPkg = mainAppPackage + ".config";
+            String configDir = configPkg.replace('.', '/');
+            Path configPath = projectDir.resolve("src/main/java/" + configDir + "/SecurityConfig.java");
+            if (Files.notExists(configPath.getParent())) {
+                Files.createDirectories(configPath.getParent());
+            }
+
+            String securityConfig = """
+                    package %s;
+
+                    import org.springframework.context.annotation.Bean;
+                    import org.springframework.context.annotation.Configuration;
+                    import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+                    import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+                    import org.springframework.security.web.SecurityFilterChain;
+
+                    @Configuration
+                    @EnableWebSecurity
+                    public class SecurityConfig {
+
+                        @Bean
+                        public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+                            http
+                                .csrf(csrf -> csrf.disable())
+                                .authorizeHttpRequests(auth -> auth
+                                    .requestMatchers("/**").permitAll()
+                                )
+                                .formLogin(form -> form.disable())
+                                .httpBasic(basic -> basic.disable());
+                            return http.build();
+                        }
+                    }
+                    """.formatted(configPkg);
+
+            Files.writeString(configPath, securityConfig);
+            emitLog(projectId, "[SYSTEM] Created SecurityConfig.java to disable default auth (sandbox mode).");
+        }
+    }
+
+    private void fixMissingJavaImports(String projectId, Path projectDir) throws IOException {
+        Map<String, String> commonImports = new LinkedHashMap<>();
+        commonImports.put("UUID", "java.util.UUID");
+        commonImports.put("List", "java.util.List");
+        commonImports.put("Map", "java.util.Map");
+        commonImports.put("HashMap", "java.util.HashMap");
+        commonImports.put("ArrayList", "java.util.ArrayList");
+        commonImports.put("Optional", "java.util.Optional");
+        commonImports.put("Set", "java.util.Set");
+        commonImports.put("HashSet", "java.util.HashSet");
+        commonImports.put("Arrays", "java.util.Arrays");
+        commonImports.put("Collections", "java.util.Collections");
+        commonImports.put("Date", "java.util.Date");
+        commonImports.put("LocalDate", "java.time.LocalDate");
+        commonImports.put("LocalDateTime", "java.time.LocalDateTime");
+        commonImports.put("BigDecimal", "java.math.BigDecimal");
+        commonImports.put("Stream", "java.util.stream.Stream");
+        commonImports.put("Collectors", "java.util.stream.Collectors");
+        commonImports.put("Path", "java.nio.file.Path");
+        commonImports.put("Paths", "java.nio.file.Paths");
+        commonImports.put("Files", "java.nio.file.Files");
+
+        try (var files = Files.walk(projectDir)) {
+            files.filter(p -> p.toString().endsWith(".java")).forEach(javaFile -> {
+                try {
+                    String content = Files.readString(javaFile);
+                    String packageName = extractPackage(content);
+                    Set<String> existingImports = extractImports(content);
+                    Set<String> importsToAdd = new LinkedHashSet<>();
+
+                    for (var entry : commonImports.entrySet()) {
+                        String typeName = entry.getKey();
+                        String fullImport = entry.getValue();
+                        String importClassName = fullImport.substring(fullImport.lastIndexOf('.') + 1);
+
+                        if (existingImports.contains(fullImport)
+                            || existingImports.contains(importClassName)
+                            || existingImports.contains(fullImport.substring(0, fullImport.lastIndexOf('.')) + ".*")) {
+                            continue;
+                        }
+
+                        if (packageName != null && fullImport.startsWith(packageName)) continue;
+
+                        if (Pattern.compile("(?<![\\w.])" + Pattern.quote(typeName) + "(?![\\w.])").matcher(content).find()) {
+                            importsToAdd.add(fullImport);
+                        }
+                    }
+
+                    if (!importsToAdd.isEmpty()) {
+                        StringBuilder updated = new StringBuilder();
+                        String[] lines = content.split("\n", -1);
+                        int insertAfter = -1;
+
+                        for (int i = 0; i < lines.length; i++) {
+                            String line = lines[i];
+                            if (line.startsWith("import ")) {
+                                insertAfter = i;
+                            }
+                        }
+
+                        if (insertAfter >= 0) {
+                            for (int i = 0; i <= insertAfter; i++) {
+                                updated.append(lines[i]).append("\n");
+                            }
+                            for (String imp : importsToAdd) {
+                                updated.append("import ").append(imp).append(";\n");
+                            }
+                            for (int i = insertAfter + 1; i < lines.length; i++) {
+                                updated.append(lines[i]).append(i < lines.length - 1 ? "\n" : "");
+                            }
+                        } else {
+                            int packageEnd = -1;
+                            for (int i = 0; i < lines.length; i++) {
+                                if (lines[i].startsWith("package ")) {
+                                    packageEnd = i;
+                                    break;
+                                }
+                            }
+                            if (packageEnd >= 0) {
+                                for (int i = 0; i <= packageEnd; i++) {
+                                    updated.append(lines[i]).append("\n");
+                                }
+                                updated.append("\n");
+                                for (String imp : importsToAdd) {
+                                    updated.append("import ").append(imp).append(";\n");
+                                }
+                                updated.append("\n");
+                                for (int i = packageEnd + 1; i < lines.length; i++) {
+                                    updated.append(lines[i]).append(i < lines.length - 1 ? "\n" : "");
+                                }
+                            }
+                        }
+
+                        if (!updated.isEmpty()) {
+                            Files.writeString(javaFile, updated.toString());
+                            emitLog(projectId, "[SYSTEM] Added missing imports to " + projectDirRelativeName(javaFile) + ": " + String.join(", ", importsToAdd) + ".");
+                        }
+                    }
+                } catch (IOException e) {
+                    log.warn("Failed to fix imports in {}", javaFile, e);
+                }
+            });
+        }
+    }
+
+    private String extractPackage(String content) {
+        var matcher = Pattern.compile("^package\\s+([\\w.]+)\\s*;", Pattern.MULTILINE).matcher(content);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private Set<String> extractImports(String content) {
+        Set<String> imports = new LinkedHashSet<>();
+        var matcher = Pattern.compile("^import\\s+(?:static\\s+)?([\\w.*]+)\\s*;", Pattern.MULTILINE).matcher(content);
+        while (matcher.find()) {
+            imports.add(matcher.group(1));
+        }
+        return imports;
     }
 
     @SuppressWarnings("unchecked")
