@@ -479,6 +479,17 @@ export const projectCodeApi = {
 export interface DockerStatusResponse {
   status: 'BUILDING' | 'RUNNING' | 'STOPPED' | 'FAILED'
   previewUrl?: string
+  proxyUrl?: string
+  port?: number
+}
+
+export interface SandboxEndpoint {
+  id: string
+  method: string
+  path: string
+  source: string
+  filePath?: string
+  summary?: string
 }
 
 export const dockerApi = {
@@ -509,5 +520,16 @@ export const dockerApi = {
     const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(projectId)}/docker/status`)
     if (!res.ok) throw new Error(await extractErrorMessage(res))
     return res.json()
+  },
+
+  discoverSandboxEndpoints: async (projectId: string): Promise<SandboxEndpoint[]> => {
+    const res = await fetchWithAuth(`/api/projects/${encodeURIComponent(projectId)}/docker/endpoints`)
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  proxySandboxRequest: async (projectId: string, path: string, init: RequestInit = {}): Promise<Response> => {
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`
+    return fetchWithAuth(`/api/projects/${encodeURIComponent(projectId)}/docker/proxy${normalizedPath}`, init)
   }
 }
