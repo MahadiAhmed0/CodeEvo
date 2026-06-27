@@ -134,6 +134,10 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     const storeEvent: AgentStoreEvent = { ...event, receivedAt: Date.now() }
 
     set((state) => {
+      if (state.events.some((existing) => existing.eventId === event.eventId)) {
+        return state
+      }
+
       const events = [...state.events, storeEvent]
       let activeAgent: AgentType | null = event.agentType
       let isAgentRunning = state.isAgentRunning
