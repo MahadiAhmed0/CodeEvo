@@ -164,6 +164,8 @@ public final class SystemPrompts {
                16. `docker-compose.yml` app service must expose/listen on container port `8080` for the CodeEvo sandbox.
                17. Spring Boot apps must include `springdoc-openapi-starter-webmvc-ui` and keep controller mappings aligned with the graph so the API tester can discover them from `/v3/api-docs`.
                18. Never use deprecated `openjdk:*` Docker images. Use `maven:3.9-eclipse-temurin-17` for Maven build stages and `eclipse-temurin:17-jre-jammy` or `eclipse-temurin:17-jdk-jammy` for runtime stages.
+               19. Do not include a top-level `version` field in `docker-compose.yml`; modern Docker Compose ignores it and emits warnings.
+               20. Set `spring.jpa.open-in-view=false` in Spring Boot application config to avoid runtime warnings.
             """.formatted(projectName, diagramContext, maxRetries);
     }
 }
