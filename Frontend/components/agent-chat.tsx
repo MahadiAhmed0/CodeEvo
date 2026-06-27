@@ -35,6 +35,23 @@ interface ChatMessage {
   approvalPayload?: PermissionRequestPayload | DiffReadyPayload
 }
 
+function normalizeChatMessages(messages: ChatMessage[]): ChatMessage[] {
+  const seen = new Set<string>()
+  return messages.map((message, index) => ({
+    ...message,
+    id: message.id || `message-${index}`,
+  })).filter((message) => {
+    const id = message.id
+    if (seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
+}
+
+function chatRenderKey(message: ChatMessage, index: number) {
+  return `${message.id}-${message.eventType ?? message.role}-${index}`
+}
+
 // --- Metadata maps ---
 
 const agentColors: Record<AgentType, { from: string; to: string; glow: string; text: string }> = {
@@ -229,7 +246,7 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
     if (saved) {
       try {
         const parsed = JSON.parse(saved, (k, v) => { if (k === 'timestamp' && typeof v === 'string') return new Date(v); return v })
-        setChatMessages(parsed)
+        setChatMessages(Array.isArray(parsed) ? normalizeChatMessages(parsed) : [])
       } catch { setChatMessages([]) }
     } else {
       setChatMessages([{ id: 'welcome', role: 'agent', agentType: 'CHAT', content: "Hello! I'm CodeEvo Chat AI, your senior software architect. I can answer questions about your codebase, design new architectural components, and generate code. What would you like to build?", timestamp: new Date(), eventType: 'MESSAGE' }])
@@ -271,7 +288,16 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
       if (newMsg) newMessages.push(newMsg)
     }
     if (newMessages.length > 0) {
-      setChatMessages(prev => { const existingIds = new Set(prev.map(m => m.id)); const unique = newMessages.filter(m => !existingIds.has(m.id)); return unique.length > 0 ? [...prev, ...unique] : prev })
+      setChatMessages(prev => {
+        const existingIds = new Set(prev.map(m => m.id))
+        const batchIds = new Set<string>()
+        const unique = newMessages.filter((m) => {
+          if (existingIds.has(m.id) || batchIds.has(m.id)) return false
+          batchIds.add(m.id)
+          return true
+        })
+        return unique.length > 0 ? normalizeChatMessages([...prev, ...unique]) : normalizeChatMessages(prev)
+      })
     }
   }, [events])
 
@@ -279,7 +305,7 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
 
   const handleSend = useCallback(() => {
     if (!input.trim() || isAgentRunning) return
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: input.trim(), timestamp: new Date() }
+    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: input.trim(), timestamp: new Date() }
     setChatMessages(prev => [...prev, userMsg])
     sendMessage(input.trim())
     setInput('')
@@ -340,8 +366,8 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
             return (
               <div key={group.key} className="flex justify-end gap-2.5">
                 <div className="space-y-1 max-w-[85%]">
-                  {group.messages.map(msg => (
-                    <motion.div key={msg.id} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
+                  {group.messages.map((msg, msgIndex) => (
+                    <motion.div key={chatRenderKey(msg, msgIndex)} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
                       <div className="px-4 py-2.5 rounded-2xl rounded-tr-sm bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] text-[13px] text-white leading-relaxed shadow-md shadow-purple-500/20">{msg.content}</div>
                       <p className="text-[10px] text-white/20 text-right mt-1 px-1">{isMounted ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</p>
                     </motion.div>
@@ -355,8 +381,8 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
             <motion.div key={group.key} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
               <AgentBlock agentType={group.agentType ?? 'CHAT'}>
                 <div className="space-y-1.5">
-                  {group.messages.map(msg => (
-                    <div key={msg.id}>
+                  {group.messages.map((msg, msgIndex) => (
+                    <div key={chatRenderKey(msg, msgIndex)}>
                       {msg.isThought && <ThoughtBlock content={msg.content} />}
                       {msg.isToolCall && msg.toolName && <ToolCallRow toolName={msg.toolName} status={msg.status ?? 'RUNNING'} resultSummary={msg.resultSummary} />}
                       {msg.eventType === 'PROGRESS' && <ProgressBadge message={msg.content} status={msg.status ?? 'RUNNING'} />}
