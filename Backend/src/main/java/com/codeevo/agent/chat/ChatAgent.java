@@ -165,6 +165,47 @@ public class ChatAgent {
                 "Reached maximum reasoning steps. Please try rephrasing.", false));
     }
 
+    /**
+     * Generates a natural-language summary of the last coding/architect task result
+     * from conversation memory, then emits it as a CHAT MESSAGE.
+     * Uses a minimal summarization prompt with NO tools — the LLM can only produce text.
+     * Always emits either the LLM's summary or a fallback message.
+     */
+    public void summarizeLastTask(String userId, String sessionId, String projectId,
+                                   String projectName, String diagramJson) {
+        List<LlmMessage> messages = new ArrayList<>();
+        messages.add(LlmMessage.system(
+                "You are a helpful technical assistant. Your only job is to produce a concise " +
+                "2-4 sentence summary of recent work. You have no tools — just produce text."));
+        messages.addAll(memoryService.getMessagesForPrompt(sessionId, projectId));
+        messages.add(LlmMessage.user(
+                "Briefly summarize what was just accomplished by the coding or architecture agent. " +
+                "Highlight key files created or modified if applicable. Be concise (2-4 sentences)."));
+
+        String summary;
+        try {
+            LlmResponse response = llmClient.chat(messages, List.of());
+            if (response.getStopReason() == LlmResponse.StopReason.ERROR) {
+                log.warn("[{}] Summarization LLM error: {}", sessionId, response.getTextContent());
+                summary = null;
+            } else {
+                summary = response.getTextContent();
+            }
+        } catch (Exception e) {
+            log.warn("[{}] Summarization failed: {}", sessionId, e.getMessage());
+            summary = null;
+        }
+
+        if (summary == null || summary.isBlank()) {
+            summary = "✅ Code generation is complete. The new files can be viewed in the Explorer tab.";
+        }
+
+        LlmMessage assistantMsg = LlmMessage.assistant(summary);
+        memoryService.addMessage(sessionId, projectId, assistantMsg);
+        gateway.emit(userId, AgentEvent.message(sessionId, projectId, AgentType.CHAT, summary));
+        gateway.emit(userId, AgentEvent.taskComplete(sessionId, projectId, AgentType.CHAT));
+    }
+
     // ─── Tool Dispatch ────────────────────────────────────────────────────────
 
     private ToolResult dispatchTool(LlmToolCall toolCall, String userId, String sessionId,
