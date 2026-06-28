@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, FileCode2, ChevronDown, ChevronUp, Loader2, BookOpen, Sparkles } from 'lucide-react'
+import { Search, FileCode2, ChevronDown, ChevronUp, Loader2, BookOpen, RotateCcw } from 'lucide-react'
 import { useAuthStore } from '@/lib/auth-store'
 
 interface CodeChunk {
@@ -133,7 +133,7 @@ export function RagContextPanel({ projectId, defaultQuery = '' }: RagContextPane
                      hover:bg-purple-500/[0.15] hover:text-purple-300 transition-colors
                      disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {indexing ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
+          {indexing ? <Loader2 size={10} className="animate-spin" /> : <RotateCcw size={10} />}
           {indexing ? 'Indexing…' : 'Re-index'}
         </button>
       </div>
@@ -161,7 +161,7 @@ export function RagContextPanel({ projectId, defaultQuery = '' }: RagContextPane
         {/* No-index state */}
         {indexedCount === 0 && !loading && (
           <div className="flex flex-col items-center justify-center h-32 gap-3 text-center px-4">
-            <Sparkles size={20} className="text-purple-500/40" />
+            <RotateCcw size={20} className="text-purple-500/40" />
             <p className="text-[11px] text-white/25 leading-relaxed">
               No code indexed yet. Click{' '}
               <strong className="text-white/40">Re-index</strong> to enable
