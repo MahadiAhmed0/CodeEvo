@@ -15,6 +15,8 @@ type TabId = 'context' | 'diffs'
 
 interface AgentSidebarProps {
   projectId: string
+  isOpen: boolean
+  onToggle: () => void
 }
 
 /**
@@ -29,8 +31,7 @@ interface AgentSidebarProps {
  * the right edge of the main area. This panel sits inside the main layout
  * as a resizable strip.
  */
-export function AgentSidebar({ projectId }: AgentSidebarProps) {
-  const [isOpen, setIsOpen] = useState(true)
+export function AgentSidebar({ projectId, isOpen, onToggle }: AgentSidebarProps) {
   const [activeTab, setActiveTab] = useState<TabId>('context')
 
   const lastUserQuery  = useAgentStore(s => s.lastUserQuery)
@@ -64,7 +65,7 @@ export function AgentSidebar({ projectId }: AgentSidebarProps) {
       {/* Collapse toggle strip */}
       <div className="relative flex flex-col items-center justify-center w-[22px] border-l border-white/[0.05] bg-[#0a0e1a]">
         <button
-          onClick={() => setIsOpen(o => !o)}
+          onClick={onToggle}
           title={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
           className="p-1 text-white/20 hover:text-white/50 transition-colors rounded-sm hover:bg-white/[0.04]"
         >
