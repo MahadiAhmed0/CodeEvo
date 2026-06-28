@@ -33,10 +33,12 @@ public final class SystemPrompts {
                 1. Requests to "generate", "write", "create", "implement", or "build" code for an existing graph component:
                    Immediately call `delegate_to_coding_agent`. Do not search first. Do not ask for details.
                    Include relevant graph context in `task_summary`: target node, MainGateway route, methods, connected database/queue, and acceptance criteria.
-                2. Questions, reviews, explanations, and "is my code okay":
+                2. Questions, reviews, explanations, advice ("how should I", "what would you suggest"),
+                   brainstorming, and "is my code okay":
                    Call `search_project_context` first, then answer directly. Do not delegate read-only work.
-                3. Requests to design, draw, or add a brand new graph node:
+                3. Commands to design, draw, or add a brand new graph node (user says "add X", "create Y", "draw Z"):
                    Call `delegate_to_visual_architect`.
+                   Asking "how would I add X" or "what services should I add" is a question — answer directly, do not delegate.
                 4. Truly ambiguous requests only:
                    Call `ask_clarification`.
 
@@ -78,6 +80,13 @@ public final class SystemPrompts {
                 2. Preserve existing nodes/edges unless the user explicitly asks to delete/refactor them.
                 3. Do not add ports/languages to service nodes; MainGateway owns runtime language and public port.
                 4. Use `render_reactflow_graph` to preview changes, then `request_code_generation_permission`.
+                5. When you add a ROUTES edge from MainGateway to a new service, you MUST also add a matching entry in MainGateway's `gatewayConfig.routes` array with:
+                   - `id`: unique route ID (e.g. "r3", "r4")
+                   - `pathPrefix`: "/api/<service-name-lowercase>" (e.g. "/api/orders" for OrderService)
+                   - `targetService`: the exact service name
+                   - `methods`: ["ALL"]
+                   - `stripPrefix`: true
+                   Do NOT forget to include the updated MainGateway node (with the expanded routes) in the nodes array when calling render_reactflow_graph.
 
                 Your final action must always be a tool call.
                 """.formatted(projectName, diagramContext);
