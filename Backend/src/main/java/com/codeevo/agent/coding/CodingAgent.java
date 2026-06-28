@@ -51,6 +51,14 @@ public class CodingAgent {
     private final ConcurrentHashMap<String, CompletableFuture<UserFeedback>> pendingApprovals =
             new ConcurrentHashMap<>();
 
+    /** Tracks last progress message per session to suppress duplicate spam */
+    private final ConcurrentHashMap<String, String> lastProgressMessage = new ConcurrentHashMap<>();
+
+    /** Tracks files created per session for result reporting */
+    private final ConcurrentHashMap<String, List<String>> sessionFilesCreated = new ConcurrentHashMap<>();
+    /** Tracks files modified per session for result reporting */
+    private final ConcurrentHashMap<String, List<String>> sessionFilesModified = new ConcurrentHashMap<>();
+
     public CodingAgent(
             @Qualifier("codingLlmClient") LlmClient llmClient,
             ToolRegistry toolRegistry,
@@ -70,10 +78,13 @@ public class CodingAgent {
      * Run the Coding Agent agentic loop for a coding task.
      * Executed asynchronously by the Supervisor's thread pool.
      */
-    public void run(String userId, CodingTask task, String projectName, String diagramJson) {
+    public CodingTaskResult run(String userId, CodingTask task, String projectName, String diagramJson) {
         String sessionId = task.getSessionId();
         String projectId = task.getProjectId();
         int maxRetries = props.getCoding().getMaxSelfCorrectionAttempts();
+
+        sessionFilesCreated.put(sessionId, new ArrayList<>());
+        sessionFilesModified.put(sessionId, new ArrayList<>());
 
         gateway.emit(userId, AgentEvent.progress(sessionId, projectId, AgentType.CODING,
                 props.getCoding().getName() + " activated. Analyzing task...", "RUNNING"));
@@ -97,7 +108,9 @@ public class CodingAgent {
                 if (consecutiveErrors >= maxRetries) {
                     gateway.emit(userId, AgentEvent.error(sessionId, projectId, AgentType.CODING,
                             "LLM API failed after " + maxRetries + " attempts: " + response.getTextContent(), true));
-                    return;
+                    cleanSession(sessionId);
+                    return CodingTaskResult.builder().success(false).sessionId(sessionId).projectId(projectId)
+                            .error("LLM API failed after " + maxRetries + " attempts").build();
                 }
                 // Add error to scratchpad and retry
                 scratchpad.add(LlmMessage.user("The previous request failed with: " +
@@ -135,7 +148,11 @@ public class CodingAgent {
                 gateway.emit(userId, AgentEvent.taskComplete(sessionId, projectId, AgentType.CODING));
                 // Wipe scratchpad — task is done
                 scratchpad.clear();
-                return;
+                cleanSession(sessionId);
+                return CodingTaskResult.builder().success(true).sessionId(sessionId).projectId(projectId)
+                        .filesCreated(sessionFilesCreated.getOrDefault(sessionId, List.of()))
+                        .filesModified(sessionFilesModified.getOrDefault(sessionId, List.of()))
+                        .summary("Task completed successfully").build();
             }
 
             if (response.isToolUse()) {
@@ -147,6 +164,16 @@ public class CodingAgent {
                     ToolResult result = dispatchTool(toolCall, userId, task);
                     if (result.isSuccess() && isWriteTool(toolCall.getName())) {
                         wroteCode = true;
+                    }
+                    if (result.isSuccess()) {
+                        String filePath = toolCall.getArguments().path("file_path").asText(null);
+                        if (filePath != null) {
+                            if ("create_file".equals(toolCall.getName())) {
+                                sessionFilesCreated.get(sessionId).add(filePath);
+                            } else if ("replace_file_content".equals(toolCall.getName())) {
+                                sessionFilesModified.get(sessionId).add(filePath);
+                            }
+                        }
                     }
 
                     gateway.emit(userId, toolResultEvent(sessionId, projectId, toolCall, result));
@@ -161,7 +188,9 @@ public class CodingAgent {
 
                     // ask_user pauses the loop — we wait for feedback
                     if (toolCall.getName().equals("ask_user")) {
-                        return;
+                        cleanSession(sessionId);
+                        return CodingTaskResult.builder().success(false).sessionId(sessionId).projectId(projectId)
+                                .summary("Task paused — awaiting user response").build();
                     }
                 }
             }
@@ -170,14 +199,16 @@ public class CodingAgent {
         log.warn("Coding agent hit max iterations for session {}", sessionId);
         gateway.emit(userId, AgentEvent.error(sessionId, projectId, AgentType.CODING,
                 "Task exceeded maximum steps. Please break it into smaller tasks.", false));
+        cleanSession(sessionId);
+        return CodingTaskResult.builder().success(false).sessionId(sessionId).projectId(projectId)
+                .error("Task exceeded maximum steps").build();
     }
 
     /**
      * Called by the Supervisor when the user resumes a paused task after ask_user.
      */
-    public void resumeWithFeedback(String userId, CodingTask task, String projectName, String diagramJson, String userResponse) {
-        // Re-enter the loop with the user's answer appended
-        run(userId, CodingTask.builder()
+    public CodingTaskResult resumeWithFeedback(String userId, CodingTask task, String projectName, String diagramJson, String userResponse) {
+        return run(userId, CodingTask.builder()
                 .sessionId(task.getSessionId())
                 .projectId(task.getProjectId())
                 .userId(task.getUserId())
@@ -237,8 +268,14 @@ public class CodingAgent {
                     args.path("test_method").asText(null));
 
             case "emit_progress" -> {
+                String msg = args.path("message").asText();
+                String last = lastProgressMessage.get(sessionId);
+                if (msg.equals(last)) {
+                    yield ToolResult.ok("Suppressed duplicate progress.");
+                }
+                lastProgressMessage.put(sessionId, msg);
                 gateway.emit(userId, AgentEvent.progress(sessionId, projectId, AgentType.CODING,
-                        args.path("message").asText(),
+                        msg,
                         args.path("status").asText("RUNNING")));
                 yield ToolResult.ok("Progress emitted.");
             }
@@ -522,5 +559,11 @@ public class CodingAgent {
                         .resultSummary(result.isSuccess() ? result.getContent() : result.getErrorMessage())
                         .build())
                 .build();
+    }
+
+    private void cleanSession(String sessionId) {
+        lastProgressMessage.remove(sessionId);
+        sessionFilesCreated.remove(sessionId);
+        sessionFilesModified.remove(sessionId);
     }
 }
