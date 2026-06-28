@@ -38,7 +38,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(e -> e.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/auth/**", "/oauth2/**", "/error", "/ws/**").permitAll()
+                        .requestMatchers("/api/auth/**", "/api/github/auth/login", "/api/github/auth/callback", "/oauth2/**", "/error", "/ws/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/users/avatar/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .anyRequest().authenticated()

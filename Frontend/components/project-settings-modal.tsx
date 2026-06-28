@@ -1,13 +1,19 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Plus, Trash2, Save, Key, AppWindow, Settings } from 'lucide-react'
+import { X, Plus, Trash2, Save, Key, AppWindow, Settings, Github, Link2, Unlink, Loader2, GitBranch } from 'lucide-react'
 import { useDiagramStore } from '@/lib/store'
+import { githubRepoApi } from '@/lib/api'
+import { GitHubRepoSelector } from '@/components/github-repo-selector'
+import { toast } from 'sonner'
 
 export function ProjectSettingsModal() {
-  const { showProjectSettings, setShowProjectSettings, projectSettings, setProjectSettings } = useDiagramStore()
-  const [activeTab, setActiveTab] = useState<'env' | 'ai'>('env')
+  const { projectSettings, showProjectSettings, projectSettingsTab, setShowProjectSettings, setProjectSettings, setProjectSettingsTab } = useDiagramStore()
+  const [activeTab, setActiveTab] = useState(projectSettingsTab)
+  const [showRepoSelector, setShowRepoSelector] = useState(false)
+  const [linkedRepo, setLinkedRepo] = useState<{ linked: boolean; fullName?: string; activeBranch?: string } | null>(null)
+  const [loadingLinked, setLoadingLinked] = useState(false)
 
   // Local state for editing
   const [envVars, setEnvVars] = useState(
@@ -15,7 +21,36 @@ export function ProjectSettingsModal() {
   )
   const [apiKeys, setApiKeys] = useState({ ...projectSettings.aiApiKeys })
 
+  // Sync with store tab when modal opens
+  useEffect(() => {
+    if (showProjectSettings) {
+      setActiveTab(projectSettingsTab)
+    }
+  }, [showProjectSettings, projectSettingsTab])
+
+  // Fetch linked repo status
+  useEffect(() => {
+    if (activeTab === 'github') {
+      setLoadingLinked(true)
+      const pid = window.location.pathname.split('/')[1]
+      if (pid && pid !== 'default') {
+        githubRepoApi.getLinkedRepo(pid)
+          .then(setLinkedRepo)
+          .catch(() => setLinkedRepo({ linked: false }))
+          .finally(() => setLoadingLinked(false))
+      } else {
+        setLinkedRepo({ linked: false })
+        setLoadingLinked(false)
+      }
+    }
+  }, [activeTab])
+
   if (!showProjectSettings) return null
+
+  const handleTabClick = (tab: string) => {
+    setActiveTab(tab)
+    setProjectSettingsTab(tab)
+  }
 
   const handleSave = () => {
     const newEnvVars: Record<string, string> = {}
@@ -71,7 +106,7 @@ export function ProjectSettingsModal() {
           <div className="w-48 border-r border-white/[0.06] bg-[#0d1220]/50 p-4">
             <nav className="flex flex-col gap-1">
               <button
-                onClick={() => setActiveTab('env')}
+                onClick={() => handleTabClick('env')}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   activeTab === 'env'
                     ? 'bg-purple-500/10 text-purple-400'
@@ -82,7 +117,7 @@ export function ProjectSettingsModal() {
                 Environment
               </button>
               <button
-                onClick={() => setActiveTab('ai')}
+                onClick={() => handleTabClick('ai')}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   activeTab === 'ai'
                     ? 'bg-purple-500/10 text-purple-400'
@@ -91,6 +126,17 @@ export function ProjectSettingsModal() {
               >
                 <Key className="w-4 h-4" />
                 AI Providers
+              </button>
+              <button
+                onClick={() => handleTabClick('github')}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === 'github'
+                    ? 'bg-purple-500/10 text-purple-400'
+                    : 'text-white/40 hover:text-white/80 hover:bg-white/[0.04]'
+                }`}
+              >
+                <Github className="w-4 h-4" />
+                GitHub Repository
               </button>
             </nav>
           </div>
@@ -144,6 +190,79 @@ export function ProjectSettingsModal() {
                     <Plus className="w-3.5 h-3.5" />
                     Add Variable
                   </button>
+                </motion.div>
+              )}
+
+              {activeTab === 'github' && (
+                <motion.div
+                  key="github"
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  className="space-y-4"
+                >
+                  <div className="mb-6">
+                    <h3 className="text-sm font-semibold text-white mb-1">GitHub Repository</h3>
+                    <p className="text-xs text-white/40">Link a GitHub repository to sync code and commits.</p>
+                  </div>
+
+                  {loadingLinked ? (
+                    <div className="flex items-center justify-center py-10">
+                      <Loader2 className="w-5 h-5 animate-spin text-purple-400" />
+                    </div>
+                  ) : linkedRepo?.linked ? (
+                    <div className="p-4 rounded-lg bg-white/[0.03] border border-white/[0.06] space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-emerald-500/10">
+                          <GitBranch className="w-5 h-5 text-emerald-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-white/90">{linkedRepo.fullName}</p>
+                          <p className="text-xs text-white/40 font-mono">{linkedRepo.activeBranch}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const pid = window.location.pathname.split('/')[1]
+                          if (!pid) return
+                          try {
+                            await githubRepoApi.unlinkProject(pid)
+                            setLinkedRepo({ linked: false })
+                            toast.success('Repository unlinked.')
+                          } catch (err: any) {
+                            toast.error(err.message ?? 'Failed to unlink.')
+                          }
+                        }}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium hover:bg-red-500/20 transition-colors"
+                      >
+                        <Unlink className="w-3.5 h-3.5" />
+                        Unlink Repository
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-4 py-10">
+                      <Github className="w-10 h-10 text-white/20" />
+                      <div className="text-center">
+                        <p className="text-sm text-white/60 mb-1">No repository linked</p>
+                        <p className="text-xs text-white/40">Connect a GitHub repository to this project.</p>
+                      </div>
+                      <button
+                        onClick={() => setShowRepoSelector(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white rounded-lg text-[13px] font-semibold hover:shadow-[0_0_15px_rgba(108,59,245,0.4)] transition-all"
+                      >
+                        <Link2 className="w-4 h-4" />
+                        Connect Repository
+                      </button>
+                    </div>
+                  )}
+
+                  {showRepoSelector && (
+                    <GitHubRepoSelector
+                      projectId={window.location.pathname.split('/')[1]}
+                      onLinked={(fullName, branch) => setLinkedRepo({ linked: true, fullName, activeBranch: branch })}
+                      onClose={() => setShowRepoSelector(false)}
+                    />
+                  )}
                 </motion.div>
               )}
 

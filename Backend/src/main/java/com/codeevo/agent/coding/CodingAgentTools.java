@@ -10,6 +10,7 @@ import com.codeevo.agent.repository.AgentCheckpointRepository;
 import com.codeevo.agent.tools.ToolResult;
 import com.codeevo.project.entity.ProjectCode;
 import com.codeevo.project.repository.ProjectCodeRepository;
+import com.codeevo.project.service.DockerExecutionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -38,6 +39,7 @@ public class CodingAgentTools {
 
     private final AgentCheckpointRepository checkpointRepository;
     private final ProjectCodeRepository codeRepository;
+    private final DockerExecutionService dockerService;
 
     // ─── list_project_files ───────────────────────────────────────────────────
 
@@ -223,6 +225,7 @@ public class CodingAgentTools {
             file.setSizeBytes((long) modified.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
             file.setUpdatedAt(Instant.now());
             codeRepository.save(file);
+            triggerSandboxRebuild(projectId);
 
             // Emit diff event for the frontend to display
             String approvalToken = UUID.randomUUID().toString();
@@ -270,6 +273,7 @@ public class CodingAgentTools {
                 file.setSizeBytes((long) cleanContent.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
                 file.setUpdatedAt(Instant.now());
                 codeRepository.save(file);
+                triggerSandboxRebuild(projectId);
 
                 DiffReadyPayload diff = DiffReadyPayload.builder()
                         .filePath(filePath).originalContent(original).modifiedContent(cleanContent)
@@ -297,6 +301,7 @@ public class CodingAgentTools {
                     .sizeBytes((long) cleanContent.getBytes(java.nio.charset.StandardCharsets.UTF_8).length)
                     .build();
             codeRepository.save(newFile);
+            triggerSandboxRebuild(projectId);
 
             // Emit diff event showing the new file to the frontend
             DiffReadyPayload diff = DiffReadyPayload.builder()
@@ -407,6 +412,28 @@ public class CodingAgentTools {
         } catch (Exception e) {
             log.error("Failed to save checkpoint for session {}", sessionId, e);
             return ToolResult.error("Checkpoint save failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * If the Docker sandbox is currently RUNNING, trigger a rebuild in the background
+     * so new/updated files get deployed to the container. Fire-and-forget — does not
+     * block the agent.
+     */
+    private void triggerSandboxRebuild(String projectId) {
+        try {
+            if (!"RUNNING".equals(dockerService.getStatus(projectId))) return;
+            log.info("[{}] Sandbox is RUNNING — triggering rebuild for new code files", projectId);
+            dockerService.setStatus(projectId, "BUILDING");
+            new Thread(() -> {
+                try {
+                    dockerService.startProject(projectId);
+                } catch (Exception e) {
+                    log.error("[{}] Sandbox rebuild failed: {}", projectId, e.getMessage());
+                }
+            }, "sandbox-rebuild-" + projectId).start();
+        } catch (Exception e) {
+            log.warn("[{}] Failed to trigger sandbox rebuild: {}", projectId, e.getMessage());
         }
     }
 

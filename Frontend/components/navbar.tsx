@@ -18,16 +18,36 @@ import {
   LogOut,
   User,
   Loader2,
+  Github,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { NotificationsPopover } from '@/components/notifications-popover'
 import { useAuthStore } from '@/lib/auth-store'
-import { authApi, userApi } from '@/lib/api'
+import { useGitHubStore } from '@/lib/github-store'
+import { authApi, userApi, githubAuthApi } from '@/lib/api'
 
 export function Navbar() {
   const router = useRouter()
   const { user, clearAuth } = useAuthStore()
   const [loggingOut, setLoggingOut] = useState(false)
+
+  const { connected: githubConnected, githubUser, setConnected } = useGitHubStore()
+
+  useEffect(() => {
+    githubAuthApi.getStatus()
+      .then((status) => {
+        if (status.connected && status.githubLogin && status.githubAvatarUrl) {
+          setConnected(true, {
+            login: status.githubLogin,
+            avatarUrl: status.githubAvatarUrl,
+            id: status.githubUserId || status.githubLogin,
+            profileUrl: status.profileUrl,
+            connectedAt: status.connectedAt,
+          }, null)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // Derive display values from store
   const initials = user
@@ -128,6 +148,29 @@ export function Navbar() {
                   Profile Settings
                 </Link>
               </DropdownMenuItem>
+
+              {githubConnected && githubUser ? (
+                <DropdownMenuItem asChild className="cursor-pointer flex items-center gap-2 rounded-md px-2 py-2 text-sm text-white/70 transition-colors hover:bg-white/[0.04] hover:text-white outline-none focus:bg-white/[0.04] focus:text-white">
+                  <Link href="/settings" className="w-full flex items-center gap-2">
+                    <span className="relative w-5 h-5 rounded-full overflow-hidden bg-white/10 flex-shrink-0">
+                      <img src={githubUser.avatarUrl} alt={githubUser.login} className="w-full h-full object-cover" />
+                      <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-[1.5px] border-[#0d1220]" />
+                    </span>
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-xs leading-tight truncate">{githubUser.login}</span>
+                      <span className="block text-[10px] text-emerald-400/70 leading-tight">GitHub Connected</span>
+                    </span>
+                  </Link>
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={() => githubAuthApi.login()}
+                  className="cursor-pointer flex items-center gap-2 rounded-md px-2 py-2 text-sm text-white/70 transition-colors hover:bg-white/[0.04] hover:text-white outline-none focus:bg-white/[0.04] focus:text-white"
+                >
+                  <Github className="w-4 h-4" />
+                  Connect GitHub
+                </DropdownMenuItem>
+              )}
 
               <div className="h-[1px] bg-white/[0.04] my-1 mx-1" />
 

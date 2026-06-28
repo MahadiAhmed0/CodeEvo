@@ -33,10 +33,18 @@ import Link from 'next/link'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { projectApi } from '@/lib/api'
+import { projectApi, githubRepoApi, githubCommitApi } from '@/lib/api'
+import { useGitHubStore } from '@/lib/github-store'
 import { formatDistanceToNow } from 'date-fns'
+
+interface GitHubActivityItem {
+  id: string
+  action: string
+  project: string
+  time: string
+}
 
 const chartData = [
   { month: 'Jan', commits: 12, agents: 4, services: 3 },
@@ -45,21 +53,52 @@ const chartData = [
   { month: 'Apr', commits: 22, agents: 6, services: 7 },
 ]
 
-const recentActivity = [
-  { id: 1, action: 'Added PaymentService', project: 'E-Commerce System', time: '2 min ago' },
-  { id: 2, action: 'Committed to main', project: 'Main Gateway', time: '15 min ago' },
-  { id: 3, action: 'Agent run completed', project: 'Notification System', time: '1 hour ago' },
-  { id: 4, action: 'Database connected', project: 'E-Commerce System', time: '2 hours ago' },
-]
-
 export default function DashboardPage() {
   const router = useRouter()
+  const { connected: githubConnected } = useGitHubStore()
   const [projects, setProjects] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
+  const [gitCommitCount, setGitCommitCount] = useState<number | null>(null)
+  const [gitActivity, setGitActivity] = useState<GitHubActivityItem[]>([])
   const [isCreating, setIsCreating] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectDesc, setNewProjectDesc] = useState('')
+
+  const fetchGitHubData = useCallback(async () => {
+    if (!githubConnected) return
+    try {
+      const projectList = await projectApi.listProjects()
+      const allProjects = projectList.content || []
+      let totalCommits = 0
+      const activities: GitHubActivityItem[] = []
+
+      for (const p of allProjects) {
+        try {
+          const linked = await githubRepoApi.getLinkedRepo(p.id)
+          if (linked.linked) {
+            const commits = await githubCommitApi.listCommits(p.id, 1, 5)
+            totalCommits += commits.length
+            commits.slice(0, 3).forEach((c: any) => {
+              activities.push({
+                id: c.sha,
+                action: c.message || 'Committed to ' + linked.fullName,
+                project: p.name,
+                time: c.date ? formatDistanceToNow(new Date(c.date), { addSuffix: true }) : 'recently',
+              })
+            })
+          }
+        } catch {
+          // project not linked, skip
+        }
+      }
+
+      setGitCommitCount(totalCommits > 0 ? totalCommits : null)
+      setGitActivity(activities.slice(0, 5))
+    } catch {
+      // GitHub data fetch failed silently
+    }
+  }, [githubConnected])
 
   const handleCreateProject = async () => {
     if (!newProjectName.trim()) return
@@ -77,18 +116,21 @@ export default function DashboardPage() {
 
   useEffect(() => {
     projectApi.listProjects().then(data => {
-      // Assuming paginated response with .content
       setProjects(data.content || [])
     }).catch(console.error)
 
     projectApi.getDashboardStats().then(setStats).catch(console.error)
   }, [])
 
+  useEffect(() => {
+    fetchGitHubData()
+  }, [fetchGitHubData])
+
   const statsData = [
     { label: 'Total Projects', value: stats?.totalProjects ?? 0, icon: FolderOpen, color: '#004aad', bg: '#004aad15' },
     { label: 'Active Projects', value: stats?.activeProjects ?? 0, icon: Activity, color: '#cb6ce6', bg: '#cb6ce615' },
     { label: 'Total Services', value: stats?.totalServiceNodes ?? 0, icon: Server, color: '#10b981', bg: '#10b98115' },
-    { label: 'Git Commits', value: '47', icon: GitCommit, color: '#f59e0b', bg: '#f59e0b15' }, // placeholder for git
+    { label: 'Git Commits', value: gitCommitCount ?? '—', icon: GitCommit, color: '#f59e0b', bg: '#f59e0b15' },
   ]
 
   return (
@@ -316,18 +358,24 @@ export default function DashboardPage() {
               </Link>
             </div>
             <div className="space-y-2">
-              {recentActivity.map((item) => (
-                <div key={item.id} className="flex items-center justify-between p-4 hover:bg-white/[0.02] border border-transparent hover:border-white/[0.06] rounded-xl transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] shadow-[0_0_8px_rgba(108,59,245,0.5)]" />
-                    <div>
-                      <p className="font-medium text-white/80 text-[14px]">{item.action}</p>
-                      <p className="text-[12px] font-medium text-white/40 mt-0.5">{item.project}</p>
+              {gitActivity.length > 0 ? (
+                gitActivity.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between p-4 hover:bg-white/[0.02] border border-transparent hover:border-white/[0.06] rounded-xl transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] shadow-[0_0_8px_rgba(108,59,245,0.5)]" />
+                      <div>
+                        <p className="font-medium text-white/80 text-[14px]">{item.action}</p>
+                        <p className="text-[12px] font-medium text-white/40 mt-0.5">{item.project}</p>
+                      </div>
                     </div>
+                    <p className="text-[12px] font-medium text-white/30 bg-white/[0.04] px-2.5 py-1 rounded-md">{item.time}</p>
                   </div>
-                  <p className="text-[12px] font-medium text-white/30 bg-white/[0.04] px-2.5 py-1 rounded-md">{item.time}</p>
+                ))
+              ) : (
+                <div className="py-8 text-center text-white/30 text-sm">
+                  {githubConnected ? 'No recent GitHub commits yet.' : 'Connect GitHub to see commit activity.'}
                 </div>
-              ))}
+              )}
             </div>
           </motion.div>
         </div>

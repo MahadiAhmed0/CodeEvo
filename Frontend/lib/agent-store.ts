@@ -20,6 +20,12 @@ import {
   UserFeedback,
 } from './websocket'
 
+export interface UserMessageEntry {
+  id: string
+  content: string
+  timestamp: number
+}
+
 export interface AgentStoreEvent extends AgentEvent {
   /** Client-assigned display ordering */
   receivedAt: number
@@ -54,6 +60,9 @@ interface AgentStore {
   // Latest graph update payload (for canvas sync)
   latestGraphUpdate: GraphUpdatePayload | null
 
+  // Shared user message history (fed by chat input and Problems tab)
+  userMessages: UserMessageEntry[]
+
   // Last message the user sent (used to auto-trigger RAG context search)
   lastUserQuery: string | null
 
@@ -77,6 +86,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   isAgentRunning: false,
   pendingApprovals: [],
   latestGraphUpdate: null,
+  userMessages: [],
   lastUserQuery: null,
 
   connect: async (sessionId, projectId, token) => {
@@ -86,7 +96,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       get().disconnect()
     }
 
-    set({ sessionId, projectId, events: [], pendingApprovals: [] })
+    set({ sessionId, projectId, events: [], pendingApprovals: [], userMessages: [] })
 
     await stompClient.connect(token)
     set({ isConnected: true })
@@ -111,11 +121,16 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   },
 
   sendMessage: (message) => {
-    const { sessionId, projectId } = get()
+    const { sessionId, projectId, userMessages } = get()
     if (!sessionId || !projectId) return
 
     stompClient.send('/app/user-input', { sessionId, projectId, message })
-    set({ isAgentRunning: true, activeAgent: 'CHAT', lastUserQuery: message })
+    set({
+      isAgentRunning: true,
+      activeAgent: 'CHAT',
+      lastUserQuery: message,
+      userMessages: [...userMessages, { id: `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, content: message, timestamp: Date.now() }],
+    })
   },
 
   stopAgent: () => {

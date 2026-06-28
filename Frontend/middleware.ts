@@ -37,7 +37,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  if (isAuthRoute && isAuthed) {
+  if (isAuthRoute && isAuthed && !pathname.startsWith('/auth/github/callback')) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

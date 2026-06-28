@@ -74,8 +74,13 @@ export default function AuthPage() {
     }
   }
 
-  const handleOAuth = () => {
-    toast.info('OAuth is coming soon! Please sign in with email for now.')
+  const handleGoogleOAuth = () => {
+    toast.info('Google OAuth is coming soon! Please sign in with email for now.')
+  }
+
+  const handleGitHubOAuth = () => {
+    const callbackUrl = `${window.location.origin}/auth/github/callback`
+    window.location.href = `https://github.com/login/oauth/authorize?client_id=${process.env.NEXT_PUBLIC_GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(callbackUrl)}&scope=repo,user,admin:repo_hook`
   }
 
   return (
@@ -128,7 +133,7 @@ export default function AuthPage() {
           <div className="space-y-3 mb-8">
             <button
               type="button"
-              onClick={handleOAuth}
+              onClick={handleGoogleOAuth}
               disabled={isLoading}
               className="w-full flex items-center justify-center gap-3 bg-white text-black px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-white/90 transition-colors disabled:opacity-50"
             >
@@ -142,7 +147,7 @@ export default function AuthPage() {
             </button>
             <button
               type="button"
-              onClick={handleOAuth}
+              onClick={handleGitHubOAuth}
               disabled={isLoading}
               className="w-full flex items-center justify-center gap-3 bg-[#24292e] text-white px-4 py-2.5 rounded-xl text-sm font-medium hover:bg-[#2c3137] transition-colors border border-white/10 disabled:opacity-50"
             >

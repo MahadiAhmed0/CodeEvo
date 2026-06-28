@@ -218,6 +218,27 @@ export interface ReactFlowEdgeDef {
   animated?: boolean
 }
 
+// ─── GitHub event types ────────────────────────────────────────────────────────
+
+export interface GitHubPushEvent {
+  type: 'GITHUB_PUSH'
+  payload: {
+    fullName: string
+    ref: string
+    commits: Array<{ sha: string; message: string; author: string }>
+  }
+}
+
+export interface GitHubPREvent {
+  type: 'GITHUB_PR'
+  payload: {
+    action: string
+    number: number
+    title: string
+    url: string
+  }
+}
+
 export interface UserInputMessage {
   sessionId: string
   projectId: string

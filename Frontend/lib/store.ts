@@ -126,6 +126,7 @@ interface DiagramStore {
   viewMode: 'graph' | 'code' | 'test'
   projectSettings: ProjectSettings
   showProjectSettings: boolean
+  projectSettingsTab: string
   
   dockerStatus: 'BUILDING' | 'RUNNING' | 'STOPPED' | 'FAILED'
   dockerLogs: string[]
@@ -151,6 +152,7 @@ interface DiagramStore {
   
   setProjectSettings: (settings: Partial<ProjectSettings>) => void
   setShowProjectSettings: (show: boolean) => void
+  setProjectSettingsTab: (tab: string) => void
   
   setAPITesting: (testing: Partial<APITestingState>) => void
   resetAPITesting: () => void
@@ -268,6 +270,7 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
     aiApiKeys: {}
   },
   showProjectSettings: false,
+  projectSettingsTab: 'env',
 
   dockerStatus: 'STOPPED',
   dockerLogs: [],
@@ -316,6 +319,7 @@ export const useDiagramStore = create<DiagramStore>((set) => ({
 
   setProjectSettings: (projectSettings) => set((state) => ({ projectSettings: { ...state.projectSettings, ...projectSettings } })),
   setShowProjectSettings: (showProjectSettings) => set({ showProjectSettings }),
+  setProjectSettingsTab: (projectSettingsTab) => set({ projectSettingsTab }),
 
   setAPITesting: (testing) =>
     set((state) => ({

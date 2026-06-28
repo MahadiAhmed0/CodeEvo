@@ -5,7 +5,6 @@ import { Navbar } from '@/components/navbar'
 import { CheckCircle2, AlertCircle, Info, Zap, Settings2 } from 'lucide-react'
 import { MOCK_NOTIFICATIONS } from '@/components/notifications-popover'
 import {
-  PaginationTitle,
   Pagination,
   PaginationContent,
   PaginationEllipsis,

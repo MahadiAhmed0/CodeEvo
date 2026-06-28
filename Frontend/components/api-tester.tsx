@@ -543,16 +543,6 @@ export function APITester({ nodes, projectId }: APITesterProps) {
 
   function resolveRequestEndpoint(rawEndpoint: string, requestMethod: string): string {
     if (rawEndpoint.includes('{')) return materializeEndpointPath(rawEndpoint)
-
-    const matchingTemplate = activeEndpoints.find((apiEndpoint) => {
-      if (apiEndpoint.method !== requestMethod || !apiEndpoint.path.includes('{')) return false
-      return pathMatchesTemplate(rawEndpoint, apiEndpoint.path)
-    })
-
-    if (matchingTemplate) {
-      return materializeEndpointPath(matchingTemplate.path, matchingTemplate.pathParams)
-    }
-
     return rawEndpoint
   }
 

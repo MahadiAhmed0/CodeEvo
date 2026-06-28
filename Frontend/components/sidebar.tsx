@@ -3,10 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDiagramStore } from '@/lib/store'
-import { projectHistoryApi, type HistoryEntry } from '@/lib/api'
+import { projectHistoryApi, githubRepoApi, type HistoryEntry } from '@/lib/api'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { GitHubRepoBadge } from '@/components/github-repo-badge'
 import { 
   ChevronRight,
   ChevronDown,
@@ -160,8 +161,21 @@ function TableColumnEditor({ item, itemIndex, itemType, engine, onUpdate }: { it
 }
 
 export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateNode, projectId }: SidebarProps) {
-  const { setShowProjectSettings } = useDiagramStore()
+  const { setShowProjectSettings, setProjectSettingsTab } = useDiagramStore()
   const [expanded, setExpanded] = useState(true)
+  const [linkedRepo, setLinkedRepo] = useState<{ fullName: string; activeBranch: string } | null>(null)
+
+  useEffect(() => {
+    if (projectId && projectId !== 'default') {
+      githubRepoApi.getLinkedRepo(projectId)
+        .then((data) => {
+          if (data.linked && data.fullName && data.activeBranch) {
+            setLinkedRepo({ fullName: data.fullName, activeBranch: data.activeBranch })
+          }
+        })
+        .catch(() => {})
+    }
+  }, [projectId])
   const [activeSection, setActiveSection] = useState<'nodes' | 'history' | 'inspector'>('nodes')
 
   // ── History state ────────────────────────────────────────────────────────
@@ -1122,9 +1136,22 @@ export function Sidebar({ selectedNode, setSelectedNode, onDeleteNode, onUpdateN
 
       {/* Footer */}
       {!selectedNode && (
-        <div className="p-3 border-t border-white/[0.06]">
+        <div className="p-3 border-t border-white/[0.06] space-y-2">
+          {linkedRepo && (
+            <GitHubRepoBadge
+              fullName={linkedRepo.fullName}
+              branch={linkedRepo.activeBranch}
+              onClick={() => {
+                setProjectSettingsTab('github')
+                setShowProjectSettings(true)
+              }}
+            />
+          )}
           <button 
-            onClick={() => setShowProjectSettings(true)}
+            onClick={() => {
+              setProjectSettingsTab('env')
+              setShowProjectSettings(true)
+            }}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-white/[0.04] border border-white/[0.06] text-white/40 text-xs font-medium hover:bg-white/[0.08] hover:text-white/60 transition-all duration-200"
           >
             <Settings className="w-3.5 h-3.5" />

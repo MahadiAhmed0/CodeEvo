@@ -26,9 +26,13 @@ import {
   Eye,
   EyeOff,
   X,
+  Github,
+  Link2,
+  Unlink,
 } from 'lucide-react'
 import { useAuthStore } from '@/lib/auth-store'
-import { userApi } from '@/lib/api'
+import { userApi, githubAuthApi } from '@/lib/api'
+import { useGitHubStore } from '@/lib/github-store'
 import { toast } from 'sonner'
 
 // ─── Password Change Modal ────────────────────────────────────────────────────
@@ -512,6 +516,151 @@ function ProfileTab() {
 
 // ─── Security Tab ─────────────────────────────────────────────────────────────
 
+// ─── Integrations Tab ─────────────────────────────────────────────────────────
+
+function IntegrationsTab() {
+  const { connected, githubUser, setConnected, disconnect: clearStore } = useGitHubStore()
+  const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState<{ connected: boolean; githubLogin?: string; githubAvatarUrl?: string; githubUserId?: string; profileUrl?: string; connectedAt?: string } | null>(null)
+
+  useEffect(() => {
+    githubAuthApi.getStatus()
+      .then((s) => {
+        setStatus(s)
+        if (s.connected && s.githubLogin && s.githubAvatarUrl) {
+          setConnected(true, {
+            login: s.githubLogin,
+            avatarUrl: s.githubAvatarUrl,
+            id: s.githubUserId || s.githubLogin,
+            profileUrl: s.profileUrl,
+            connectedAt: s.connectedAt,
+          }, null)
+        }
+      })
+      .catch(() => setStatus({ connected: false }))
+  }, [])
+
+  const handleConnect = () => {
+    githubAuthApi.login()
+  }
+
+  const handleDisconnect = async () => {
+    setLoading(true)
+    try {
+      await githubAuthApi.disconnect()
+      clearStore()
+      setStatus({ connected: false })
+      toast.success('GitHub account disconnected.')
+    } catch (err: any) {
+      toast.error(err.message ?? 'Failed to disconnect GitHub.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const isConnected = status?.connected ?? connected
+
+  const ghLogin = status?.githubLogin || githubUser?.login
+  const ghAvatar = status?.githubAvatarUrl || githubUser?.avatarUrl
+  const ghId = status?.githubUserId || githubUser?.id
+  const ghProfileUrl = status?.profileUrl || githubUser?.profileUrl
+  const ghConnectedAt = status?.connectedAt || githubUser?.connectedAt
+
+  const connectedDate = ghConnectedAt ? new Date(ghConnectedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : null
+
+  return (
+    <div className="p-6 rounded-xl bg-[#0d1220]/95 backdrop-blur-xl border border-white/[0.06]">
+      <h2 className="text-lg font-semibold text-white/90 mb-6">Integrations</h2>
+
+      {isConnected ? (
+        <div className="rounded-lg bg-white/[0.02] border border-white/[0.04] overflow-hidden">
+          <div className="p-6 flex items-start gap-5">
+            <div className="relative flex-shrink-0">
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-white/5 ring-2 ring-emerald-500/20">
+                {ghAvatar ? (
+                  <img src={ghAvatar} alt={ghLogin} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Github className="w-7 h-7 text-white/30" />
+                  </div>
+                )}
+              </div>
+              <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-[2.5px] border-[#0d1220]" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-1">
+                <h3 className="text-base font-semibold text-white/90">{ghLogin}</h3>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  Connected
+                </span>
+              </div>
+              <p className="text-xs text-white/40 mb-3">GitHub Integration</p>
+
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                <div>
+                  <span className="text-white/30">User ID</span>
+                  <p className="text-white/70 font-mono">{ghId}</p>
+                </div>
+                <div>
+                  <span className="text-white/30">Profile</span>
+                  <a
+                    href={ghProfileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sky-400 hover:text-sky-300 hover:underline font-medium"
+                  >
+                    {ghProfileUrl}
+                  </a>
+                </div>
+                {connectedDate && (
+                  <div className="col-span-2">
+                    <span className="text-white/30">Connected since</span>
+                    <p className="text-white/70">{connectedDate}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={handleDisconnect}
+              disabled={loading}
+              className="flex-shrink-0 bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20 gap-2"
+              size="sm"
+            >
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Unlink className="w-4 h-4" />}
+              Disconnect
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+          <div className="flex items-center gap-4">
+            <div className="p-2.5 rounded-lg bg-white/[0.04]">
+              <Github className="w-5 h-5 text-white/40" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-white/90">GitHub</h3>
+              <p className="text-xs text-white/40 mt-1">Connect your GitHub account to sync repositories</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleConnect}
+            className="bg-white/[0.04] border-white/[0.06] text-white hover:bg-white/[0.08] gap-2"
+            size="sm"
+          >
+            <Link2 className="w-4 h-4" />
+            Connect
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SecurityTab() {
   const [showPasswordModal, setShowPasswordModal] = useState(false)
 
@@ -582,6 +731,7 @@ function SettingsContent() {
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'billing', label: 'Billing', icon: CreditCard },
+    { id: 'integrations', label: 'Integrations', icon: Link2 },
   ]
 
   return (
@@ -675,6 +825,8 @@ function SettingsContent() {
                   )}
 
                   {activeTab === 'security' && <SecurityTab />}
+
+                  {activeTab === 'integrations' && <IntegrationsTab />}
 
                   {activeTab === 'billing' && (
                     <>
