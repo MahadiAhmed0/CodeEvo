@@ -22,6 +22,14 @@ public class AgentModelProperties {
     private MemoryConfig memory = new MemoryConfig();
     private CacheConfig cache = new CacheConfig();
     private SessionConfig session = new SessionConfig();
+    private PermissionConfig permission = new PermissionConfig();
+
+    @Data
+    public static class PermissionConfig {
+        /** Timeout in seconds for pending user permission/approval requests.
+         *  If the user doesn't respond within this window, the request auto-rejects. */
+        private long timeoutSeconds = 300;
+    }
 
     @Data
     public static class SupervisorConfig {
