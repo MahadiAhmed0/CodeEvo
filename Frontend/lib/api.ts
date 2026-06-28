@@ -534,3 +534,173 @@ export const dockerApi = {
     return fetchWithAuth(`/api/projects/${encodeURIComponent(projectId)}/docker/proxy${normalizedPath}`, init)
   }
 }
+
+// ─── GitHub API ────────────────────────────────────────────────────────────
+
+export const githubAuthApi = {
+  login: (redirectPath?: string) => {
+    const redirect = redirectPath || '/dashboard'
+    window.location.href = `/api/github/auth/login?redirect=${encodeURIComponent(redirect)}`
+  },
+
+  handleCallback: async (code: string, redirect?: string): Promise<{ accessToken: string; githubId: string; githubLogin: string; githubAvatar: string; redirect: string }> => {
+    const res = await fetch('/api/github/auth/callback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, redirect }),
+    })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  getStatus: async (): Promise<{ connected: boolean; githubLogin?: string; githubAvatarUrl?: string; githubUserId?: string; profileUrl?: string; connectedAt?: string }> => {
+    const res = await fetchWithAuth('/api/github/auth/status')
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  storeToken: async (accessToken: string, githubId: string, githubLogin: string, githubAvatar: string): Promise<void> => {
+    const res = await fetchWithAuth('/api/github/auth/store', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accessToken, githubId, githubLogin, githubAvatar }),
+    })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+  },
+
+  disconnect: async (): Promise<void> => {
+    const res = await fetchWithAuth('/api/github/auth/disconnect', { method: 'POST' })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+  },
+}
+
+export const githubRepoApi = {
+  listRepos: async (page = 1, perPage = 30): Promise<any[]> => {
+    const res = await fetchWithAuth(`/api/github/repos?page=${page}&perPage=${perPage}`)
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  listBranches: async (owner: string, repo: string): Promise<any[]> => {
+    const res = await fetchWithAuth(`/api/github/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches`)
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  linkProject: async (projectId: string, repoOwner: string, repoName: string, branch = 'main'): Promise<any> => {
+    const res = await fetchWithAuth('/api/github/repos/link', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId, repoOwner, repoName, branch }),
+    })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  unlinkProject: async (projectId: string): Promise<void> => {
+    const res = await fetchWithAuth('/api/github/repos/unlink', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId }),
+    })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+  },
+
+  getLinkedRepo: async (projectId: string): Promise<{ linked: boolean; fullName?: string; owner?: string; repo?: string; defaultBranch?: string; activeBranch?: string }> => {
+    const res = await fetchWithAuth(`/api/github/repos/link/${encodeURIComponent(projectId)}`)
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  listLinkedRepos: async (): Promise<LinkedRepoInfo[]> => {
+    const res = await fetchWithAuth('/api/github/repos/linked')
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  getFileContent: async (owner: string, repo: string, path: string, ref = 'main'): Promise<{ found: boolean; decodedContent?: string; error?: string; sha?: string; size?: number }> => {
+    const encodedPath = path.split('/').map(encodeURIComponent).join('/')
+    const res = await fetchWithAuth(`/api/github/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`)
+    if (!res.ok) {
+      return { found: false, error: 'Failed to fetch file' }
+    }
+    return res.json()
+  },
+}
+
+export interface LinkedRepoInfo {
+  projectId: string
+  fullName: string
+  repoOwner: string
+  repoName: string
+  defaultBranch: string
+  activeBranch: string
+  lastPushedCommitSha: string | null
+  lastPushedAt: string | null
+  linkedAt: string
+  projectName?: string
+}
+
+export const githubCommitApi = {
+  listCommits: async (projectId: string, page = 1, perPage = 30, branch?: string, author?: string): Promise<any[]> => {
+    let path = `/api/github/commits/${encodeURIComponent(projectId)}?page=${page}&perPage=${perPage}`
+    if (branch) path += `&branch=${encodeURIComponent(branch)}`
+    if (author) path += `&author=${encodeURIComponent(author)}`
+    const res = await fetchWithAuth(path)
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  getCommit: async (projectId: string, sha: string): Promise<any> => {
+    const res = await fetchWithAuth(`/api/github/commits/${encodeURIComponent(projectId)}/detail/${sha}`)
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  compareCommits: async (projectId: string, base: string, head: string): Promise<any> => {
+    const res = await fetchWithAuth(`/api/github/commits/${encodeURIComponent(projectId)}/compare?base=${base}&head=${head}`)
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+}
+
+export interface SyncChange {
+  filePath: string
+  type: 'added' | 'modified' | 'deleted'
+  content?: string | null
+}
+
+export interface SyncDiffResponse {
+  changes: SyncChange[]
+  totalChanges: number
+  ahead: boolean
+  behind: boolean
+  aheadBy: number
+  behindBy: number
+  lastPushedCommitSha: string | null
+  linked: boolean
+}
+
+export const githubPushApi = {
+  pushToGitHub: async (projectId: string, options?: { branch?: string; message?: string; createPr?: boolean; prTitle?: string }): Promise<any> => {
+    const res = await fetchWithAuth(`/api/github/push/${encodeURIComponent(projectId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(options || {}),
+    })
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  getPushStatus: async (projectId: string): Promise<any> => {
+    const res = await fetchWithAuth(`/api/github/push/status/${encodeURIComponent(projectId)}`)
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+
+  getSyncDiff: async (projectId: string): Promise<SyncDiffResponse> => {
+    const res = await fetchWithAuth(`/api/github/push/diff/${encodeURIComponent(projectId)}`)
+    if (!res.ok) throw new Error(await extractErrorMessage(res))
+    return res.json()
+  },
+}
