@@ -758,10 +758,10 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
           <div className="relative">
             <button
               onClick={() => setShowJsonMenu(!showJsonMenu)}
-              className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.12]"
             >
               <FileJson size={14} />
-              JSON Data
+              JSON
             </button>
             <AnimatePresence>
               {showJsonMenu && (
@@ -798,7 +798,7 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
           <button
             onClick={handleDownloadCode}
             disabled={isDownloadingCode}
-            className="px-3.5 py-2 bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white rounded-xl text-[13px] font-medium flex items-center gap-2 hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[12px] font-medium transition-all bg-[#0d1220]/90 backdrop-blur-sm border border-white/[0.08] text-white/60 hover:text-white hover:bg-white/[0.06] hover:border-white/[0.12] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isDownloadingCode ? (
               <svg className="animate-spin w-3.5 h-3.5 text-white/60" viewBox="0 0 24 24" fill="none">
@@ -806,9 +806,9 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
               </svg>
             ) : (
-              <Code2 size={14} />
+              <Download size={14} />
             )}
-            {isDownloadingCode ? 'Downloading...' : 'Download Code'}
+            {isDownloadingCode ? 'Downloading...' : 'Code'}
           </button>
         </div>
 
