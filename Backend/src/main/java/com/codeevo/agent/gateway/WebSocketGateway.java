@@ -1,12 +1,16 @@
 package com.codeevo.agent.gateway;
 
 import com.codeevo.agent.model.AgentEvent;
+import com.codeevo.agent.model.AgentEventType;
 import com.codeevo.agent.model.payload.DiffReadyPayload;
 import com.codeevo.agent.model.payload.GraphUpdatePayload;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
+
+import java.util.LinkedList;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Thin wrapper around {@link SimpMessagingTemplate} that sends typed events
@@ -29,17 +33,44 @@ public class WebSocketGateway {
     private final SimpMessagingTemplate messagingTemplate;
 
     /**
-     * Emit any agent event to the session's events topic.
-     * The sessionId is read from the event itself.
+     * Generic session-level dedup: tracks the last N event payload signatures
+     * per sessionId, regardless of source agent or event type. Suppresses any
+     * event whose payload exactly matches a recent event from any agent.
+     * This stops all spam (progress, checkpoint, tool calls, etc.) at the source.
      */
+    private static final int MAX_RECENT_SIGNATURES = 5;
+    private final ConcurrentHashMap<String, LinkedList<String>> recentEventSignatures = new ConcurrentHashMap<>();
+
     public void emit(String userId, AgentEvent event) {
         try {
+            if (isDuplicate(event)) return;
+
             String dest = "/topic/session/" + event.getSessionId() + "/events";
             messagingTemplate.convertAndSend(dest, event);
             log.debug("Emitted [{}] {} to {}", event.getAgentType(), event.getType(), dest);
         } catch (Exception e) {
             log.error("Failed to emit event to session {}: {}", event.getSessionId(), e.getMessage());
         }
+    }
+
+    /**
+     * Returns true if this event's payload matches any of the last N events
+     * in this session, regardless of which agent or event type produced them.
+     * This is a generic "recent messages identical → skip" filter.
+     */
+    private boolean isDuplicate(AgentEvent event) {
+        String signature = event.getType() + "|" + (event.getPayload() != null ? event.getPayload().toString() : "");
+        LinkedList<String> recent = recentEventSignatures.computeIfAbsent(event.getSessionId(), k -> new LinkedList<>());
+        synchronized (recent) {
+            if (recent.contains(signature)) {
+                return true;
+            }
+            recent.addLast(signature);
+            while (recent.size() > MAX_RECENT_SIGNATURES) {
+                recent.removeFirst();
+            }
+        }
+        return false;
     }
 
     /**
