@@ -11,7 +11,7 @@ import {
   Shield, Square,
   ChevronRight,
 } from 'lucide-react'
-import { useAgentStore } from '@/lib/agent-store'
+import { useAgentStore, UserMessageEntry } from '@/lib/agent-store'
 import { useAuthStore } from '@/lib/auth-store'
 import {
   AgentType, ProgressPayload, ToolCallPayload, MessagePayload,
@@ -266,7 +266,8 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const processedIndexRef = useRef<number>(0)
-  const { isConnected, isAgentRunning, activeAgent, events, connect, sendMessage, sendFeedback, stopAgent } = useAgentStore()
+  const userMessagesLenRef = useRef(0)
+  const { isConnected, isAgentRunning, activeAgent, events, userMessages, connect, sendMessage, sendFeedback, stopAgent } = useAgentStore()
 
   useEffect(() => { setIsMounted(true) }, [])
 
@@ -332,12 +333,21 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
     }
   }, [events])
 
+  useEffect(() => {
+    const newEntries = userMessages.slice(userMessagesLenRef.current)
+    userMessagesLenRef.current = userMessages.length
+    if (newEntries.length > 0) {
+      setChatMessages(prev => normalizeChatMessages([
+        ...prev,
+        ...newEntries.map(m => ({ id: m.id, role: 'user' as const, content: m.content, timestamp: new Date(m.timestamp) })),
+      ]))
+    }
+  }, [userMessages])
+
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [chatMessages, isAgentRunning])
 
   const handleSend = useCallback(() => {
     if (!input.trim() || isAgentRunning) return
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: input.trim(), timestamp: new Date() }
-    setChatMessages(prev => [...prev, userMsg])
     sendMessage(input.trim())
     setInput('')
   }, [input, isAgentRunning, sendMessage])
