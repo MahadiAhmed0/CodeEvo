@@ -15,6 +15,7 @@ export default function ProjectPage({ params }: { params: Promise<{ project: str
   const projectId = unwrappedParams.project
 
   const [selectedNode, setSelectedNode] = useState(null)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const agentOpen    = useDiagramStore(state => state.isChatbotExpanded)
   const setAgentOpen = useDiagramStore(state => state.setIsChatbotExpanded)
@@ -80,7 +81,7 @@ export default function ProjectPage({ params }: { params: Promise<{ project: str
                 transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
                 className="h-full flex overflow-hidden shrink-0"
               >
-                <AgentSidebar projectId={projectId} />
+                <AgentSidebar projectId={projectId} isOpen={sidebarOpen} onToggle={() => setSidebarOpen(o => !o)} />
               </motion.div>
             )}
           </AnimatePresence>
