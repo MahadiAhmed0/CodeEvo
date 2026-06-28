@@ -15,14 +15,17 @@ import {
   Loader2,
   Square,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Upload
 } from 'lucide-react'
-import { projectCodeApi, dockerApi } from '@/lib/api'
+import { projectCodeApi, dockerApi, githubRepoApi, githubPushApi } from '@/lib/api'
 import { toast } from 'sonner'
 import { useDiagramStore } from '@/lib/store'
 import { useAgentStore } from '@/lib/agent-store'
+import { useGitHubStore } from '@/lib/github-store'
 import { stompClient } from '@/lib/websocket'
 import { LogLine } from '@/components/log-line'
+import { PushToGitHubModal } from '@/components/push-to-github-modal'
 
 // Basic syntax highlighting colors
 const colors = {
@@ -94,6 +97,9 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
   const [backendTree, setBackendTree] = useState<Record<string, any> | null>(null)
   const [isLoadingCode, setIsLoadingCode] = useState(false)
   const [hasBackendFiles, setHasBackendFiles] = useState(false)
+  const [showPushModal, setShowPushModal] = useState(false)
+  const [linkedRepo, setLinkedRepo] = useState<{ linked: boolean; fullName?: string; activeBranch?: string } | null>(null)
+  const { connected: githubConnected } = useGitHubStore()
 
   const { events, isConnected: isAgentConnected } = useAgentStore()
   const processedIndexRef = React.useRef<number>(0)
@@ -156,6 +162,17 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
       }).catch(console.error)
     }
   }, [projectId])
+
+  // Check linked repo status for push button
+  useEffect(() => {
+    if (projectId && githubConnected) {
+      githubRepoApi.getLinkedRepo(projectId)
+        .then(setLinkedRepo)
+        .catch(() => setLinkedRepo({ linked: false }))
+    } else {
+      setLinkedRepo({ linked: false })
+    }
+  }, [projectId, githubConnected])
 
   // Subscribe to Docker logs via WebSocket
   useEffect(() => {
@@ -363,6 +380,9 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
           )}
         </div>
         <div className="flex items-center gap-3">
+          {linkedRepo?.linked && (
+            <span title="Push to GitHub"><Upload onClick={() => setShowPushModal(true)} size={14} className="text-purple-400 cursor-pointer hover:text-purple-300 transition-colors" /></span>
+          )}
           {dockerStatus === 'STOPPED' || dockerStatus === 'FAILED' ? (
             <Play onClick={handlePlay} size={14} className="text-emerald-400 cursor-pointer hover:text-emerald-300 transition-colors" />
           ) : dockerStatus === 'BUILDING' ? (
@@ -539,6 +559,13 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
           )}
         </div>
       </div>
+      {showPushModal && projectId && (
+        <PushToGitHubModal
+          projectId={projectId}
+          defaultBranch={linkedRepo?.activeBranch}
+          onClose={() => setShowPushModal(false)}
+        />
+      )}
     </motion.div>
   )
 }
