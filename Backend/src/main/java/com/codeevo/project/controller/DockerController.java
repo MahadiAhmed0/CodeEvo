@@ -41,12 +41,11 @@ public class DockerController {
 
     @PostMapping("/restart")
     public ResponseEntity<Map<String, Object>> restartDocker(@PathVariable String projectId) {
-        dockerExecutionService.stopProject(projectId);
         try {
-            String previewUrl = dockerExecutionService.startProject(projectId);
+            String previewUrl = dockerExecutionService.rebuildProject(projectId);
             return ResponseEntity.ok(statusBody(projectId, dockerExecutionService.getStatus(projectId), previewUrl));
         } catch (Exception e) {
-            log.error("Failed to restart docker for project {}", projectId, e);
+            log.error("Failed to rebuild docker for project {}", projectId, e);
             return ResponseEntity.internalServerError().body(Map.<String, Object>of("error", e.getMessage()));
         }
     }
