@@ -2,10 +2,7 @@ package com.codeevo.agent.rag;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,23 +26,17 @@ public class RagController {
     private final CodeIndexerService indexerService;
     private final RagSearchService ragSearchService;
 
-    @Value("${codeevo.project.base-path:#{null}}")
-    private String defaultBasePath;
-
     /**
      * Trigger a full re-index of a project's codebase.
      * The actual indexing runs asynchronously — this endpoint returns immediately.
      */
     @PostMapping("/{projectId}/index")
     public ResponseEntity<Map<String, Object>> triggerIndex(
-            @PathVariable String projectId,
-            @RequestParam(required = false) String basePath,
-            @AuthenticationPrincipal UserDetails user) {
+            @PathVariable String projectId) {
 
-        String effectivePath = basePath != null ? basePath : defaultBasePath;
-        log.info("Indexing triggered for project {} by {} at path {}", projectId, user.getUsername(), effectivePath);
+        log.info("Indexing triggered for project {}", projectId);
 
-        indexerService.indexProject(projectId, effectivePath);
+        indexerService.indexProjectFromDb(projectId);
 
         return ResponseEntity.accepted().body(Map.of(
                 "status", "indexing_started",
