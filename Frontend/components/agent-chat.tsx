@@ -2,13 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   MessageSquare, Send, Bot, User, Sparkles,
   Loader2, Copy, Check, X, ChevronDown, Code2,
   Terminal, GitBranch, AlertTriangle, CheckCircle2,
-  Shield, WifiOff, Wifi, Square, FileCode, Search,
-  List, Eye, RefreshCw, Play, Save, HelpCircle,
-  Zap, ChevronRight, FileText, Database,
+  Shield, Square,
+  ChevronRight,
 } from 'lucide-react'
 import { useAgentStore } from '@/lib/agent-store'
 import { useAuthStore } from '@/lib/auth-store'
@@ -100,21 +101,21 @@ function getToolMeta(toolName: string) {
 function ThoughtBlock({ content }: { content: string }) {
   const [open, setOpen] = useState(false)
   return (
-    <div className="rounded-xl border border-purple-500/15 bg-purple-500/[0.04] overflow-hidden">
+    <div className="rounded-lg border border-purple-500/10 overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-purple-500/[0.04] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-purple-500/[0.03] transition-colors"
       >
-        <Sparkles size={11} className="text-purple-400/70 flex-shrink-0" />
-        <span className="text-[11px] text-purple-300/60 font-semibold tracking-wide">Agent reasoning</span>
-        <span className="ml-auto text-[10px] text-purple-300/30 font-mono">{content.split(' ').length} words</span>
-        <ChevronDown size={11} className={`text-purple-300/30 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <Sparkles size={10} className="text-purple-400/50 flex-shrink-0" />
+        <span className="text-[10px] text-purple-300/40 font-medium">Reasoning</span>
+        <span className="ml-auto text-[9px] text-purple-300/20 font-mono">{content.split(' ').length} words</span>
+        <ChevronDown size={10} className={`text-purple-300/20 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
       <AnimatePresence>
         {open && (
           <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-            <div className="mx-3.5 mb-3 border-t border-purple-500/10" />
-            <p className="px-3.5 pb-3 text-[11px] text-purple-200/30 font-mono leading-relaxed whitespace-pre-wrap">{content}</p>
+            <div className="mx-3 border-t border-purple-500/8" />
+            <p className="px-3 py-2 text-[10.5px] text-purple-200/25 font-mono leading-relaxed whitespace-pre-wrap">{content}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -130,27 +131,26 @@ function ToolCallRow({ toolName, status, resultSummary }: { toolName: string; st
   const isFailed = status === 'FAILED'
 
   return (
-    <div className={`rounded-lg border overflow-hidden transition-colors ${isFailed ? 'border-red-500/20 bg-red-500/[0.03]' : isSuccess ? 'border-white/[0.07] bg-white/[0.02]' : 'border-purple-500/20 bg-purple-500/[0.03]'}`}>
+    <div className="rounded-md overflow-hidden transition-colors">
       <button
         onClick={() => resultSummary && setOpen(o => !o)}
-        className={`w-full flex items-center gap-2.5 px-3 py-2 text-left ${resultSummary ? 'hover:bg-white/[0.02] cursor-pointer' : 'cursor-default'}`}
+        className={`w-full flex items-center gap-2 px-2.5 py-1 text-left ${resultSummary ? 'hover:bg-white/[0.02] cursor-pointer' : 'cursor-default'}`}
       >
         <div className="flex-shrink-0">
-          {isRunning && <Loader2 size={12} className="animate-spin text-purple-400" />}
-          {isSuccess && <CheckCircle2 size={12} className="text-emerald-400" />}
-          {isFailed && <AlertTriangle size={12} className="text-red-400" />}
+          {isRunning && <Loader2 size={10} className="animate-spin text-purple-400/50" />}
+          {isSuccess && <CheckCircle2 size={10} className="text-emerald-400/50" />}
+          {isFailed && <AlertTriangle size={10} className="text-red-400/50" />}
         </div>
-        <Terminal size={12} className={`flex-shrink-0 ${meta.color}`} />
-        <span className="text-[12px] font-semibold text-white/70 flex-1">{meta.label}</span>
-        <span className={`text-[10px] font-bold tracking-wider ${isFailed ? 'text-red-400' : isSuccess ? 'text-emerald-400/70' : 'text-purple-400'}`}>{status}</span>
-        {resultSummary && <ChevronRight size={11} className={`text-white/20 transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />}
+        <span className={`text-[11px] ${isFailed ? 'text-red-300/60' : isSuccess ? 'text-white/40' : 'text-purple-300/50'} flex-1`}>{meta.label}</span>
+        <span className={`text-[9px] ${isFailed ? 'text-red-400/60' : isSuccess ? 'text-emerald-400/50' : 'text-purple-400/50'}`}>{status}</span>
+        {resultSummary && <ChevronRight size={10} className={`text-white/15 transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />}
       </button>
-      <p className="px-3 pb-1.5 text-[10px] text-white/25 font-mono -mt-0.5">{meta.description}</p>
+      <p className="px-2.5 pb-1 text-[9px] text-white/15">{meta.description}</p>
       <AnimatePresence>
         {open && resultSummary && (
           <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
-            <div className="mx-3 mb-2 border-t border-white/[0.05]" />
-            <p className="px-3 pb-2.5 text-[10.5px] text-white/35 font-mono leading-relaxed whitespace-pre-wrap line-clamp-6">{resultSummary}</p>
+            <div className="mx-2.5 border-t border-white/[0.03]" />
+            <p className="px-2.5 pb-1.5 text-[10px] text-white/25 font-mono leading-relaxed whitespace-pre-wrap line-clamp-6">{resultSummary}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -162,11 +162,11 @@ function ProgressBadge({ message, status }: { message: string; status: string })
   const isSuccess = status === 'SUCCESS'
   const isFailed = status === 'FAILED'
   return (
-    <div className={`flex items-start gap-2.5 py-1.5 px-3 rounded-lg ${isSuccess ? 'bg-emerald-500/[0.05]' : isFailed ? 'bg-red-500/[0.05]' : ''}`}>
-      {isSuccess && <CheckCircle2 size={13} className="text-emerald-400 mt-0.5 flex-shrink-0" />}
-      {isFailed && <AlertTriangle size={13} className="text-red-400 mt-0.5 flex-shrink-0" />}
-      {!isSuccess && !isFailed && <div className="w-1.5 h-1.5 rounded-full bg-purple-400/50 mt-1.5 flex-shrink-0 animate-pulse" />}
-      <span className={`text-[12px] leading-relaxed font-medium ${isSuccess ? 'text-emerald-300/80' : isFailed ? 'text-red-300/80' : 'text-white/50'}`}>{message}</span>
+    <div className="flex items-center gap-2 py-0.5">
+      {isSuccess && <CheckCircle2 size={11} className="text-emerald-400/70 flex-shrink-0" />}
+      {isFailed && <AlertTriangle size={11} className="text-red-400/70 flex-shrink-0" />}
+      {!isSuccess && !isFailed && <Loader2 size={11} className="text-purple-400/50 flex-shrink-0 animate-spin" />}
+      <span className={`text-[11.5px] leading-relaxed ${isSuccess ? 'text-emerald-300/60' : isFailed ? 'text-red-300/60' : 'text-white/40'}`}>{message}</span>
     </div>
   )
 }
@@ -202,22 +202,53 @@ function ApprovalCard({ payload, agentType, token, onApprove, onReject }: {
   )
 }
 
-function AgentBlock({ agentType, children }: { agentType: AgentType; children: React.ReactNode }) {
+function AgentBlock({ agentType, children, collapsible = true }: { agentType: AgentType; children: React.ReactNode; collapsible?: boolean }) {
+  const [open, setOpen] = useState(false)
   const colors = agentColors[agentType]
   const label = agentLabels[agentType]
   const Icon = agentType === 'CODING' ? Code2 : agentType === 'VISUAL_ARCHITECT' ? GitBranch : Bot
-  return (
-    <div className="flex gap-3">
-      <div className="flex flex-col items-center gap-1 flex-shrink-0">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center shadow-md"
-          style={{ background: `linear-gradient(135deg, ${colors.from}, ${colors.to})`, boxShadow: `0 4px 12px ${colors.glow}` }}>
-          <Icon size={13} className="text-white" />
+
+  if (!collapsible) {
+    return (
+      <div className="flex gap-2.5">
+        <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+          <div className="w-6 h-6 rounded-md flex items-center justify-center"
+            style={{ background: `linear-gradient(135deg, ${colors.from}, ${colors.to})` }}>
+            <Icon size={11} className="text-white" />
+          </div>
+          <div className="w-px flex-1 min-h-[6px] bg-white/[0.03]" />
         </div>
-        <div className="w-px flex-1 min-h-[8px] bg-white/[0.04]" />
+        <div className="flex-1 min-w-0">
+          <p className={`text-[9px] font-semibold uppercase tracking-widest mb-0.5 ${colors.text} opacity-50`}>{label}</p>
+          <div className="space-y-0.5">{children}</div>
+        </div>
       </div>
-      <div className="flex-1 pb-1 space-y-1.5 min-w-0">
-        <p className={`text-[10.5px] font-bold uppercase tracking-widest mt-1 ${colors.text} opacity-60`}>{label}</p>
-        {children}
+    )
+  }
+
+  return (
+    <div className="flex gap-2.5">
+      <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+        <button onClick={() => setOpen(o => !o)} className="w-6 h-6 rounded-md flex items-center justify-center hover:opacity-80 transition-opacity"
+          style={{ background: `linear-gradient(135deg, ${colors.from}, ${colors.to})` }}>
+          <Icon size={11} className="text-white" />
+        </button>
+        <button onClick={() => setOpen(o => !o)} className="w-px flex-1 min-h-[6px] bg-white/[0.03] hover:bg-white/[0.06] transition-colors cursor-pointer" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <button onClick={() => setOpen(o => !o)} className="w-full text-left">
+          <p className={`text-[9px] font-semibold uppercase tracking-widest mb-0.5 ${colors.text} opacity-50`}>
+            {label}
+            <ChevronDown size={9} className={`inline ml-1 text-white/20 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+          </p>
+        </button>
+        <AnimatePresence>
+          {open && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden space-y-0.5">
+              {children}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )
@@ -326,12 +357,19 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
     )
   }
 
-  // Group consecutive messages from same agent
+  // Group consecutive messages from same agent, collapsing duplicate progress
   const groups: { key: string; agentType?: AgentType; isUser: boolean; messages: ChatMessage[] }[] = []
   for (const msg of chatMessages) {
     const last = groups[groups.length - 1]
     const sameGroup = last && ((msg.role === 'user' && last.isUser) || (msg.role === 'agent' && !last.isUser && msg.agentType === last.agentType))
-    if (sameGroup) { last.messages.push(msg) } else { groups.push({ key: msg.id, agentType: msg.agentType, isUser: msg.role === 'user', messages: [msg] }) }
+    if (sameGroup) {
+      const lastMsg = last.messages[last.messages.length - 1]
+      // Deduplicate consecutive identical progress messages
+      if (msg.eventType === 'PROGRESS' && lastMsg.eventType === 'PROGRESS' && msg.content === lastMsg.content) continue
+      last.messages.push(msg)
+    } else {
+      groups.push({ key: msg.id, agentType: msg.agentType, isUser: msg.role === 'user', messages: [msg] })
+    }
   }
 
   return (
@@ -340,27 +378,24 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
       className="h-full flex flex-col border-l border-white/[0.06] bg-[#0a0f1d]/98 backdrop-blur-xl overflow-hidden" style={{ width: 420 }}>
 
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06] bg-gradient-to-r from-[#0a0f1d] to-[#0d1220]">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
+        <div className="flex items-center gap-2.5">
           <div className="relative">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] flex items-center justify-center shadow-lg shadow-purple-500/25">
-              <Bot size={17} className="text-white" />
+            <div className="w-7 h-7 rounded-lg bg-[#6c3bf5] flex items-center justify-center">
+              <Bot size={13} className="text-white" />
             </div>
-            <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[#0a0f1d] ${isConnected ? 'bg-emerald-400' : 'bg-white/20'}`} />
+            <div className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border-2 border-[#0a0f1d] ${isConnected ? 'bg-emerald-400' : 'bg-white/20'}`} />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white tracking-tight">{activeAgent ? agentLabels[activeAgent] : 'Agent System'}</h3>
-            <div className="flex items-center gap-1.5">
-              {isConnected ? <Wifi size={9} className="text-emerald-400" /> : <WifiOff size={9} className="text-white/30" />}
-              <span className="text-[10.5px] text-white/40 font-medium">{isConnected ? (isAgentRunning ? 'Working...' : 'Ready') : 'Connecting...'}</span>
-            </div>
+            <h3 className="text-xs font-semibold text-white/90">CodeEvo Agent</h3>
+            <span className="text-[10px] text-white/30">{isConnected ? (isAgentRunning ? 'Working...' : 'Ready') : 'Connecting...'}</span>
           </div>
         </div>
-        <button onClick={() => setIsOpen(false)} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-white/30 hover:text-white/70 transition-colors"><X size={15} /></button>
+        <button onClick={() => setIsOpen(false)} className="p-1 rounded-md hover:bg-white/[0.06] text-white/20 hover:text-white/50 transition-colors"><X size={13} /></button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-5 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 scrollbar-thin">
         {groups.map(group => {
           if (group.isUser) {
             return (
@@ -368,44 +403,61 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
                 <div className="space-y-1 max-w-[85%]">
                   {group.messages.map((msg, msgIndex) => (
                     <motion.div key={chatRenderKey(msg, msgIndex)} initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.2 }}>
-                      <div className="px-4 py-2.5 rounded-2xl rounded-tr-sm bg-gradient-to-br from-[#6c3bf5] to-[#c74cf0] text-[13px] text-white leading-relaxed shadow-md shadow-purple-500/20">{msg.content}</div>
-                      <p className="text-[10px] text-white/20 text-right mt-1 px-1">{isMounted ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</p>
+                      <div className="px-3.5 py-2 rounded-xl rounded-tr-sm bg-[#6c3bf5]/20 text-[13px] text-white/90 leading-relaxed">{msg.content}</div>
+                      <p className="text-[9px] text-white/15 text-right mt-0.5 px-1">{isMounted ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</p>
                     </motion.div>
                   ))}
                 </div>
-                <div className="w-7 h-7 rounded-xl flex items-center justify-center flex-shrink-0 mt-1 bg-gradient-to-br from-[#6c3bf5]/50 to-[#c74cf0]/50"><User size={12} className="text-white" /></div>
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 bg-[#6c3bf5]/30"><User size={10} className="text-white/70" /></div>
               </div>
             )
           }
           return (
             <motion.div key={group.key} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
-              <AgentBlock agentType={group.agentType ?? 'CHAT'}>
-                <div className="space-y-1.5">
-                  {group.messages.map((msg, msgIndex) => (
-                    <div key={chatRenderKey(msg, msgIndex)}>
-                      {msg.isThought && <ThoughtBlock content={msg.content} />}
-                      {msg.isToolCall && msg.toolName && <ToolCallRow toolName={msg.toolName} status={msg.status ?? 'RUNNING'} resultSummary={msg.resultSummary} />}
-                      {msg.eventType === 'PROGRESS' && <ProgressBadge message={msg.content} status={msg.status ?? 'RUNNING'} />}
-                      {msg.eventType === 'PERMISSION_REQ' && msg.approvalToken && msg.approvalPayload && (
-                        <ApprovalCard payload={msg.approvalPayload as PermissionRequestPayload} agentType={msg.agentType ?? 'SUPERVISOR'} token={msg.approvalToken} onApprove={handleApprove} onReject={handleReject} />
-                      )}
-                      {!msg.isThought && !msg.isToolCall && msg.eventType !== 'PROGRESS' && msg.eventType !== 'PERMISSION_REQ' && (
-                        <div className={`group relative px-4 py-3 rounded-xl rounded-tl-sm text-[13px] leading-relaxed ${msg.eventType === 'ERROR' || msg.eventType === 'FATAL_ERROR' ? 'bg-red-500/[0.07] border border-red-500/[0.15] text-red-300/90' : 'bg-white/[0.04] border border-white/[0.07] text-white/80'}`}>
-                          <p className="whitespace-pre-wrap">{msg.content}</p>
-                          <div className="flex items-center gap-2 mt-2 pt-1.5 border-t border-white/[0.04]">
-                            <span className="text-[10px] text-white/20">{isMounted ? msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                            {msg.content && (
-                              <button onClick={() => copyMessage(msg.id, msg.content)} className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-white/[0.08] rounded ml-auto">
-                                {copiedId === msg.id ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} className="text-white/30" />}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
+              {group.agentType === 'CHAT' ? (
+                <>
+                  {/* Chat AI text messages always visible — like a normal chat */}
+                  {group.messages.filter(m => !m.isThought && !m.isToolCall && m.eventType !== 'PROGRESS' && m.eventType !== 'PERMISSION_REQ').map((msg, msgIndex) => (
+                    <div key={chatRenderKey(msg, msgIndex)} className={`px-3.5 py-2.5 rounded-lg text-[13px] leading-relaxed ${msg.eventType === 'ERROR' || msg.eventType === 'FATAL_ERROR' ? 'bg-red-500/[0.05] text-red-300/80' : 'text-white/80'}`}>
+                      <div className="prose prose-invert prose-sm max-w-none [&_pre]:bg-black/40 [&_pre]:border [&_pre]:border-white/[0.06] [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:text-[12px] [&_code::before]:content-none [&_code::after]:content-none [&_code]:bg-white/[0.06] [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_p]:leading-relaxed [&_p]:m-0 [&_ul]:my-1 [&_ol]:my-1 [&_li]:text-white/80 [&_h1]:text-white/90 [&_h2]:text-white/90 [&_h3]:text-white/90 [&_a]:text-purple-400 [&_a]:underline [&_a:hover]:text-purple-300 [&_blockquote]:border-l-purple-500/30 [&_blockquote]:text-white/50 [&_blockquote]:text-[12px] [&_hr]:border-white/[0.06] [&_table]:w-full [&_th]:text-left [&_th]:text-white/70 [&_th]:text-[11px] [&_th]:px-2 [&_th]:py-1 [&_td]:text-white/70 [&_td]:text-[12px] [&_td]:px-2 [&_td]:py-1 [&_tr]:border-b [&_tr]:border-white/[0.04]]">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      </div>
                     </div>
                   ))}
-                </div>
-              </AgentBlock>
+                  {/* Chat AI internals (thoughts, tool calls, progress) — collapsible */}
+                  {group.messages.some(m => m.isThought || m.isToolCall || m.eventType === 'PROGRESS') && (
+                    <AgentBlock agentType="SUPERVISOR" collapsible={true}>
+                      {group.messages.filter(m => m.isThought || m.isToolCall || m.eventType === 'PROGRESS').map((msg, msgIndex) => (
+                        <div key={chatRenderKey(msg, msgIndex)}>
+                          {msg.isThought && <ThoughtBlock content={msg.content} />}
+                          {msg.isToolCall && msg.toolName && <ToolCallRow toolName={msg.toolName} status={msg.status ?? 'RUNNING'} resultSummary={msg.resultSummary} />}
+                          {msg.eventType === 'PROGRESS' && <ProgressBadge message={msg.content} status={msg.status ?? 'RUNNING'} />}
+                        </div>
+                      ))}
+                    </AgentBlock>
+                  )}
+                </>
+              ) : (
+                <AgentBlock agentType={group.agentType ?? 'CHAT'}>
+                  <div className="space-y-1.5">
+                    {group.messages.map((msg, msgIndex) => (
+                      <div key={chatRenderKey(msg, msgIndex)}>
+                        {msg.isThought && <ThoughtBlock content={msg.content} />}
+                        {msg.isToolCall && msg.toolName && <ToolCallRow toolName={msg.toolName} status={msg.status ?? 'RUNNING'} resultSummary={msg.resultSummary} />}
+                        {msg.eventType === 'PROGRESS' && <ProgressBadge message={msg.content} status={msg.status ?? 'RUNNING'} />}
+                        {msg.eventType === 'PERMISSION_REQ' && msg.approvalToken && msg.approvalPayload && (
+                          <ApprovalCard payload={msg.approvalPayload as PermissionRequestPayload} agentType={msg.agentType ?? 'SUPERVISOR'} token={msg.approvalToken} onApprove={handleApprove} onReject={handleReject} />
+                        )}
+                        {!msg.isThought && !msg.isToolCall && msg.eventType !== 'PROGRESS' && msg.eventType !== 'PERMISSION_REQ' && (
+                          <div className={`px-3.5 py-2.5 rounded-lg text-[13px] leading-relaxed ${msg.eventType === 'ERROR' || msg.eventType === 'FATAL_ERROR' ? 'bg-red-500/[0.05] text-red-300/80' : 'text-white/80'}`}>
+                            {msg.content}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </AgentBlock>
+              )}
             </motion.div>
           )
         })}
@@ -414,15 +466,15 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
           {isAgentRunning && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
               <AgentBlock agentType={activeAgent ?? 'CHAT'}>
-                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/[0.02]">
                   <div className="flex gap-1">
                     {[0, 1, 2].map(i => (
-                      <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-purple-400/60"
+                      <motion.div key={i} className="w-1 h-1 rounded-full bg-purple-400/50"
                         animate={{ scale: [1, 1.4, 1], opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }} />
                     ))}
                   </div>
-                  <span className="text-[11.5px] text-white/35 font-medium">{activeAgent ? agentLabels[activeAgent] + ' is working...' : 'Thinking...'}</span>
-                  <button onClick={stopAgent} className="ml-auto p-1 rounded-md bg-red-500/10 text-red-400/70 hover:bg-red-500/20 hover:text-red-400 transition-colors" title="Stop generation"><Square size={10} fill="currentColor" /></button>
+                  <span className="text-[11px] text-white/30">{activeAgent ? agentLabels[activeAgent] + ' is working...' : 'Thinking...'}</span>
+                  <button onClick={stopAgent} className="ml-auto p-0.5 rounded bg-red-500/10 text-red-400/50 hover:bg-red-500/20 hover:text-red-400 transition-colors" title="Stop"><Square size={8} fill="currentColor" /></button>
                 </div>
               </AgentBlock>
             </motion.div>
@@ -432,18 +484,18 @@ export function AgentChat({ isOpen, setIsOpen, sessionId, projectId }: {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-white/[0.06] bg-gradient-to-t from-[#0a0f1d] to-transparent">
-        <div className="relative flex items-end gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl px-4 py-3 focus-within:border-purple-500/40 focus-within:bg-white/[0.06] focus-within:shadow-lg focus-within:shadow-purple-500/10 transition-all duration-200">
+      <div className="px-3 py-3 border-t border-white/[0.06]">
+        <div className="relative flex items-end gap-2 bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 focus-within:border-purple-500/30 focus-within:bg-white/[0.05] transition-all duration-200">
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-            placeholder={isAgentRunning ? 'Agent is working...' : 'Ask the agent anything...'} disabled={isAgentRunning} rows={1}
-            className="flex-1 bg-transparent text-[13px] text-white/90 placeholder:text-white/20 resize-none outline-none max-h-32 scrollbar-thin disabled:opacity-40 leading-relaxed" />
+            placeholder={isAgentRunning ? 'Agent is working...' : 'Ask anything...'} disabled={isAgentRunning} rows={1}
+            className="flex-1 bg-transparent text-[12.5px] text-white/80 placeholder:text-white/15 resize-none outline-none max-h-32 scrollbar-thin disabled:opacity-40 leading-relaxed" />
           {isAgentRunning ? (
-            <button onClick={stopAgent} className="p-2 rounded-lg bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-all duration-200 flex-shrink-0" title="Stop Generation"><Square fill="currentColor" size={13} /></button>
+            <button onClick={stopAgent} className="p-1.5 rounded-md bg-red-500/15 text-red-400 hover:bg-red-500/25 transition-colors flex-shrink-0"><Square fill="currentColor" size={11} /></button>
           ) : (
-            <button onClick={handleSend} disabled={!input.trim() || !isConnected} className="p-2 rounded-lg bg-gradient-to-r from-[#6c3bf5] to-[#c74cf0] text-white disabled:opacity-30 hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-200 flex-shrink-0"><Send size={13} /></button>
+            <button onClick={handleSend} disabled={!input.trim() || !isConnected} className="p-1.5 rounded-md bg-[#6c3bf5] text-white disabled:opacity-30 hover:bg-[#6c3bf5]/80 transition-colors flex-shrink-0"><Send size={11} /></button>
           )}
         </div>
-        <p className="text-[10px] text-white/15 mt-2 text-center">Enter to send · Shift+Enter for new line</p>
+        <p className="text-[9px] text-white/10 mt-1.5 text-center">Enter to send · Shift+Enter for new line</p>
       </div>
     </motion.aside>
   )
