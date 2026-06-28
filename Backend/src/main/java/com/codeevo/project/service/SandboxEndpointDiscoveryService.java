@@ -115,6 +115,41 @@ public class SandboxEndpointDiscoveryService {
             .source(source)
             .filePath(filePath)
             .summary(summary)
+            .requestBodyExample(requestBodyExampleFor(normalizedMethod, normalizedPath))
             .build());
+    }
+
+    private Object requestBodyExampleFor(String method, String path) {
+        if (!method.equals("POST") && !method.equals("PUT") && !method.equals("PATCH")) {
+            return null;
+        }
+
+        String normalizedPath = path.toLowerCase(Locale.ROOT);
+        Map<String, Object> example = new LinkedHashMap<>();
+
+        if (normalizedPath.contains("user")) {
+            example.put("name", "Test User");
+            example.put("email", "test@example.com");
+            example.put("password", "password123");
+            return example;
+        }
+
+        if (normalizedPath.contains("product")) {
+            example.put("name", "Test Product");
+            example.put("price", 99.99);
+            example.put("description", "A test product");
+            return example;
+        }
+
+        if (normalizedPath.contains("order")) {
+            example.put("productId", "11111111-1111-4111-8111-111111111111");
+            example.put("quantity", 2);
+            example.put("status", "PENDING");
+            return example;
+        }
+
+        example.put("name", "Test Item");
+        example.put("description", "Generated API test payload");
+        return example;
     }
 }

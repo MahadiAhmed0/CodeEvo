@@ -16,4 +16,5 @@ public class SandboxEndpointDto {
     private String source;
     private String filePath;
     private String summary;
+    private Object requestBodyExample;
 }

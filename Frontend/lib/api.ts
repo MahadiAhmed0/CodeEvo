@@ -490,6 +490,7 @@ export interface SandboxEndpoint {
   source: string
   filePath?: string
   summary?: string
+  requestBodyExample?: any
 }
 
 export const dockerApi = {

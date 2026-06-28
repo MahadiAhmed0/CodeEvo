@@ -209,13 +209,20 @@ public class CodingAgentTools {
             if (!normalizedOriginal.contains(normalizedTarget)) {
                 return ToolResult.error(
                         "Target content not found in " + filePath +
-                        ". This is often caused by missing indentation or extra whitespace. Ensure your target_content EXACTLY matches the existing file. Call view_file again to verify.");
+                        ". This is often caused by missing indentation or extra whitespace. Call view_file again once. " +
+                        "If the next exact edit is uncertain or the file needs a broad fix, call create_file with the complete corrected file content to overwrite this existing file.");
             }
 
             String modified = normalizedOriginal.replace(normalizedTarget, replacementContent.replace("\r\n", "\n"));
 
             // Sanitize: strip any HTML tags that may have been injected by the LLM before saving
             modified = stripHtml(modified);
+
+            // Save updated content back to MongoDB
+            file.setContent(modified);
+            file.setSizeBytes((long) modified.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+            file.setUpdatedAt(Instant.now());
+            codeRepository.save(file);
 
             // Emit diff event for the frontend to display
             String approvalToken = UUID.randomUUID().toString();
@@ -228,12 +235,6 @@ public class CodingAgentTools {
                     .sessionId(sessionId).projectId(projectId).agentType(AgentType.CODING)
                     .type(AgentEventType.DIFF_READY).payload(diff).build();
             gateway.emitDiff(userId, diffEvent, diff);
-
-            // Save updated content back to MongoDB
-            file.setContent(modified);
-            file.setSizeBytes((long) modified.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
-            file.setUpdatedAt(Instant.now());
-            codeRepository.save(file);
 
             log.info("Updated file in project {}: {}", projectId, filePath);
             return ToolResult.ok("Successfully modified " + filePath + ". Change: " + changeDescription);
@@ -257,22 +258,35 @@ public class CodingAgentTools {
         try {
             // Check if file already exists — use upsert semantics
             Optional<ProjectCode> existing = codeRepository.findByProjectIdAndFilePath(projectId, filePath);
+            String detectedLanguage = language != null ? language : detectLanguage(filePath);
+            String cleanContent = stripHtml(content);
 
             if (existing.isPresent()) {
-                // Treat as an update if the agent re-creates an existing file
-                return replaceFileContent(userId, sessionId, projectId,
-                        filePath,
-                        existing.get().getContent() != null ? existing.get().getContent() : "",
-                        content,
-                        "Overwrite: " + changeDescription,
-                        gateway);
+                ProjectCode file = existing.get();
+                String original = file.getContent() != null ? file.getContent() : "";
+
+                file.setContent(cleanContent);
+                file.setLanguage(detectedLanguage);
+                file.setSizeBytes((long) cleanContent.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+                file.setUpdatedAt(Instant.now());
+                codeRepository.save(file);
+
+                DiffReadyPayload diff = DiffReadyPayload.builder()
+                        .filePath(filePath).originalContent(original).modifiedContent(cleanContent)
+                        .changeDescription("Overwrite: " + changeDescription)
+                        .requiresApproval(false).approvalToken(UUID.randomUUID().toString())
+                        .build();
+
+                AgentEvent diffEvent = AgentEvent.builder()
+                        .sessionId(sessionId).projectId(projectId).agentType(AgentType.CODING)
+                        .type(AgentEventType.DIFF_READY).payload(diff).build();
+                gateway.emitDiff(userId, diffEvent, diff);
+
+                log.info("Overwrote file in project {}: {}", projectId, filePath);
+                return ToolResult.ok("Overwrote existing file: " + filePath + ". Change: " + changeDescription);
             }
 
             // Detect language from file extension if not explicitly provided
-            String detectedLanguage = language != null ? language : detectLanguage(filePath);
-
-            // Sanitize: strip any HTML tags/entities the LLM may have injected
-            String cleanContent = stripHtml(content);
 
             // Save to MongoDB
             ProjectCode newFile = ProjectCode.builder()

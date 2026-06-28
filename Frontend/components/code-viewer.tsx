@@ -9,7 +9,6 @@ import {
   X,
   Play,
   Settings,
-  Search,
   CheckCircle2,
   GitBranch,
   AlertCircle,
@@ -23,6 +22,7 @@ import { toast } from 'sonner'
 import { useDiagramStore } from '@/lib/store'
 import { useAgentStore } from '@/lib/agent-store'
 import { stompClient } from '@/lib/websocket'
+import { LogLine } from '@/components/log-line'
 
 // Basic syntax highlighting colors
 const colors = {
@@ -98,26 +98,25 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
   const { events, isConnected: isAgentConnected } = useAgentStore()
   const processedIndexRef = React.useRef<number>(0)
 
-  const loadTree = (isInitial = false) => {
-    if (!projectId) return
+  const projectIdRef = React.useRef(projectId)
+  projectIdRef.current = projectId
 
-    if (isInitial) setIsLoadingCode(true)
-    projectCodeApi.getFileTree(projectId)
+  const loadTree = (showLoading = false) => {
+    const pid = projectIdRef.current
+    if (!pid) return
+
+    if (showLoading) setIsLoadingCode(true)
+    projectCodeApi.getFileTree(pid)
       .then((treeResponse) => {
         if (treeResponse.totalFiles > 0) {
           setBackendTree(treeResponse.tree)
           setHasBackendFiles(true)
-          
-          // If we have an active file open, attempt to update its content to the latest version
           setActiveFile((prevActive: any) => {
             if (!prevActive) return null
-            // Recursive search to find the updated file content in the new tree
             const findUpdatedFile = (treeNode: any): any => {
               for (const key in treeNode) {
                 const item = treeNode[key]
-                if (item.type === 'file' && item.name === prevActive.name) {
-                  return item // Found the updated file object
-                }
+                if (item.type === 'file' && item.name === prevActive.name) return item
                 if (item.children) {
                   const found = findUpdatedFile(item.children)
                   if (found) return found
@@ -125,19 +124,23 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
               }
               return null
             }
-            const updated = findUpdatedFile(treeResponse.tree)
-            return updated || prevActive
+            return findUpdatedFile(treeResponse.tree) || prevActive
           })
         } else {
+          setBackendTree(null)
           setHasBackendFiles(false)
         }
       })
       .catch((err) => {
         console.error('Failed to load code files:', err)
-        if (isInitial) setHasBackendFiles(false)
+        if (showLoading) {
+          toast.error('Failed to load project files: ' + (err.message || 'Unknown error'))
+        }
+        setBackendTree(null)
+        setHasBackendFiles(false)
       })
       .finally(() => {
-        if (isInitial) setIsLoadingCode(false)
+        if (showLoading) setIsLoadingCode(false)
       })
   }
 
@@ -284,9 +287,10 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
         `Severity: ${problem.severity}`,
         `Source: ${problem.source}`,
         `Error: ${problem.raw}`,
+        problem.context?.length ? `Log context:\n${problem.context.join('\n')}` : '',
         '',
         'Use the current project files and architecture graph context. Write the code changes needed, then explain how to verify the API again.'
-      ].join('\n')
+      ].filter(Boolean).join('\n')
     )
   }
 
@@ -391,7 +395,7 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
         <div className="w-64 border-r border-white/[0.06] bg-[#0a0e1a]/50 flex flex-col">
           <div className="p-3 text-[11px] font-semibold tracking-wider text-gray-500 uppercase flex items-center justify-between">
             Explorer
-            <Search size={12} className="cursor-pointer hover:text-gray-300" />
+            <RefreshCw size={12} className="cursor-pointer hover:text-gray-300" onClick={() => loadTree(true)} />
           </div>
           <div className="flex-1 overflow-y-auto py-2">
             {Object.keys(fileTree).length > 0 ? (
@@ -467,9 +471,7 @@ export function CodeViewer({ nodes, edges, projectId }: CodeViewerProps) {
                 <div className="text-gray-500 italic">Click Play to start the Docker sandbox...</div>
               ) : (
                 dockerLogs.map((log, index) => (
-                  <div key={index} className={`flex items-start gap-2 ${log.includes('ERROR') || log.includes('Exception') || log.includes('failed') ? 'text-red-400' : log.includes('WARN') ? 'text-orange-400' : log.includes('SYSTEM') || log.includes('SUCCESS') ? 'text-emerald-400' : 'text-gray-400'}`}>
-                    <span>{log}</span>
-                  </div>
+                  <LogLine key={index} line={log} />
                 ))
               )}
               {dockerStatus === 'BUILDING' || dockerStatus === 'RUNNING' ? (

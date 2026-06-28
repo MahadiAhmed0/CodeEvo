@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, FileCode2, ChevronDown, ChevronUp, Loader2, BookOpen, Sparkles } from 'lucide-react'
+import { useAuthStore } from '@/lib/auth-store'
 
 interface CodeChunk {
   filePath: string
@@ -37,9 +38,9 @@ export function RagContextPanel({ projectId, defaultQuery = '' }: RagContextPane
   // Fetch indexing status on mount
   useEffect(() => {
     if (!projectId || projectId === 'default') return
-    const token = localStorage.getItem('authToken') ?? ''
+    const token = useAuthStore.getState().accessToken
     fetch(`/api/rag/${projectId}/status`, {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
     })
       .then(r => r.json())
       .then(data => setIndexedCount(data.indexedChunks ?? 0))
@@ -59,7 +60,7 @@ export function RagContextPanel({ projectId, defaultQuery = '' }: RagContextPane
     if (!q.trim() || !projectId || projectId === 'default') return
     setLoading(true)
     try {
-      const token = localStorage.getItem('authToken') ?? ''
+      const token = useAuthStore.getState().accessToken
       const res = await fetch(
         `/api/rag/${projectId}/chunks?query=${encodeURIComponent(q)}&topK=6`,
         { headers: { Authorization: `Bearer ${token}` } }
@@ -78,23 +79,28 @@ export function RagContextPanel({ projectId, defaultQuery = '' }: RagContextPane
 
   const handleIndex = async () => {
     setIndexing(true)
-    const token = localStorage.getItem('authToken') ?? ''
-    try {
-      await fetch(`/api/rag/${projectId}/index`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` }
-      })
-      setTimeout(() => {
-        fetch(`/api/rag/${projectId}/status`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-          .then(r => r.json())
-          .then(d => setIndexedCount(d.indexedChunks ?? 0))
-          .catch(() => {})
-      }, 3000)
-    } finally {
+    const token = useAuthStore.getState().accessToken
+    const res = await fetch(`/api/rag/${projectId}/index`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+    if (!res.ok) {
+      console.error('Re-index failed', res.status)
       setIndexing(false)
+      return
     }
+    setTimeout(async () => {
+      try {
+        const statusRes = await fetch(`/api/rag/${projectId}/status`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        })
+        if (statusRes.ok) {
+          const d = await statusRes.json()
+          setIndexedCount(d.indexedChunks ?? 0)
+        }
+      } catch { /* ignore */ }
+      setIndexing(false)
+    }, 3000)
   }
 
   const toggleExpand = (i: number) => {

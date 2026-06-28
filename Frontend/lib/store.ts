@@ -101,6 +101,7 @@ export interface DockerProblem {
   source: 'docker' | 'build' | 'runtime'
   message: string
   raw: string
+  context?: string[]
   filePath?: string
   line?: number
   column?: number
@@ -180,11 +181,26 @@ const buildProblemPatterns = [
   /\bexited with code\b/i,
   /\bException\b/,
   /\bCaused by:/,
+  /\bAPPLICATION FAILED TO START\b/i,
+  /\bError starting ApplicationContext\b/i,
+  /\bError creating bean\b/i,
+  /\bUnsatisfiedDependencyException\b/i,
+  /\bFailed to configure a DataSource\b/i,
+  /\bParameter \d+ of constructor\b/i,
+  /\bDescription:\b/i,
+  /\bAction:\b/i,
 ]
 
 const warningProblemPatterns = [
   /\[WARN(ING)?\]/i,
   /\bWARN(ING)?\b/i,
+]
+
+const benignWarningPatterns = [
+  /the attribute `version` is obsolete/i,
+  /spring\.jpa\.open-in-view is enabled by default/i,
+  /initdb: warning: enabling "trust" authentication/i,
+  /Container is running, but the app server did not respond before the readiness timeout/i,
 ]
 
 const parseDockerProblems = (logs: string[]): DockerProblem[] => {
@@ -198,6 +214,7 @@ const parseDockerProblems = (logs: string[]): DockerProblem[] => {
     const isError = buildProblemPatterns.some((pattern) => pattern.test(line))
     const isWarning = !isError && warningProblemPatterns.some((pattern) => pattern.test(line))
     if (!isError && !isWarning) return
+    if (isWarning && benignWarningPatterns.some((pattern) => pattern.test(line))) return
 
     const fileMatch =
       line.match(/([A-Za-z]:?[^:\s]+?\.(?:java|kt|go|js|ts|tsx|jsx|xml|yml|yaml|json)):\[(\d+),(\d+)\]/) ||
@@ -215,12 +232,18 @@ const parseDockerProblems = (logs: string[]): DockerProblem[] => {
       /\b(container|docker|compose|network|image)\b/i.test(line) ? 'docker' :
       'runtime'
 
+    const context = logs
+      .slice(Math.max(0, index - 8), Math.min(logs.length, index + 18))
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+
     problems.push({
       id: `${isError ? 'ERR' : 'WARN'}-${String(problems.length + 1).padStart(3, '0')}`,
       severity: isError ? 'error' : 'warning',
       source,
-      message: line.replace(/^\[[A-Z]+\]\s*/i, '').slice(0, 300),
+      message: line.replace(/^\[[A-Z]+\]\s*/i, '').slice(0, 1000),
       raw: line,
+      context,
       filePath,
       line: lineNumber,
       column: columnNumber,

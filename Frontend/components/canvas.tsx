@@ -829,33 +829,35 @@ export function Canvas({ selectedNode, setSelectedNode, projectId = 'default' }:
         </div>
       </motion.div>
 
-      {/* Status Bar */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 text-[11px] text-white/20 bg-[#0d1220]/80 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/[0.06] z-10">
-        <span className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60" />
-          {nodes.length} Nodes
-        </span>
-        <span className="w-px h-3 bg-white/[0.06]" />
-        <span>{edges.length} Edges</span>
-        <span className="w-px h-3 bg-white/[0.06]" />
-        <span className="font-mono text-purple-400/40">v1.2.0</span>
-        <span className="w-px h-3 bg-white/[0.06]" />
-        {saveStatus === 'saving' && (
-          <span className="flex items-center gap-1 text-white/30">
-            <svg className="animate-spin w-2.5 h-2.5" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
-            Saving…
+      {viewMode === 'graph' && (
+        /* Status Bar */
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 text-[11px] text-white/20 bg-[#0d1220]/80 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/[0.06] z-10">
+          <span className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400/60" />
+            {nodes.length} Nodes
           </span>
-        )}
-        {saveStatus === 'saved' && (
-          <span className="text-emerald-400/60">Saved ✓</span>
-        )}
-        {saveStatus === 'error' && (
-          <span className="text-red-400/70">Save failed</span>
-        )}
-      </div>
+          <span className="w-px h-3 bg-white/[0.06]" />
+          <span>{edges.length} Edges</span>
+          <span className="w-px h-3 bg-white/[0.06]" />
+          <span className="font-mono text-purple-400/40">v1.2.0</span>
+          <span className="w-px h-3 bg-white/[0.06]" />
+          {saveStatus === 'saving' && (
+            <span className="flex items-center gap-1 text-white/30">
+              <svg className="animate-spin w-2.5 h-2.5" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+              Saving…
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="text-emerald-400/60">Saved ✓</span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="text-red-400/70">Save failed</span>
+          )}
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       <AlertDialog open={!!nodeToDelete} onOpenChange={(isOpen) => !isOpen && cancelDeleteNode()}>

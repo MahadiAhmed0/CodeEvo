@@ -51,6 +51,8 @@ public class DockerExecutionService {
             return getPreviewUrl(projectId);
         }
 
+        stopProject(projectId); // Release Docker file locks before cleaning the temp directory
+
         projectStatus.put(projectId, "BUILDING");
         exportProject(projectId);
 
@@ -65,15 +67,16 @@ public class DockerExecutionService {
         
         int exitCode = process.waitFor();
         if (exitCode == 0) {
+            tailLogs(projectId, projectDir);
             emitLog(projectId, "[SYSTEM] Container built. Waiting for app server on " + getPreviewUrl(projectId) + "...");
             boolean ready = waitForSandboxServer(projectId);
-            projectStatus.put(projectId, "RUNNING");
             if (ready) {
+                projectStatus.put(projectId, "RUNNING");
                 emitLog(projectId, "[SYSTEM] Container started successfully. Starting log tail...");
             } else {
-                emitLog(projectId, "[WARNING] Container is running, but the app server did not respond before the readiness timeout. Check Problems and logs.");
+                projectStatus.put(projectId, "FAILED");
+                emitLog(projectId, "[ERROR] App server did not respond before the readiness timeout. Check Problems and logs.");
             }
-            tailLogs(projectId, projectDir);
         } else {
             projectStatus.put(projectId, "FAILED");
             emitLog(projectId, "[ERROR] Container failed to start (exit code " + exitCode + ")");
@@ -166,40 +169,56 @@ public class DockerExecutionService {
     private void exportProject(String projectId) throws IOException {
         List<ProjectCode> files = codeRepository.findByProjectIdOrderByFilePathAsc(projectId);
         Path projectDir = Paths.get(WORKSPACE_DIR, projectId);
-        if (Files.exists(projectDir)) {
-            Files.walk(projectDir)
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete);
-        }
+        deleteProjectDir(projectId, projectDir);
         Files.createDirectories(projectDir);
 
         ProjectCode composeFile = null;
+        Path pomPath = null;
+        List<Path> springConfigPaths = new ArrayList<>();
 
         for (ProjectCode file : files) {
-            Path filePath = projectDir.resolve(file.getFilePath());
+            String relativePath = file.getFilePath();
+            if (relativePath == null || relativePath.isBlank()) {
+                log.warn("[{}] Skipping code entry with empty file path", projectId);
+                continue;
+            }
+            Path filePath = projectDir.resolve(relativePath);
             Files.createDirectories(filePath.getParent());
             Files.writeString(filePath, file.getContent());
 
-            if (file.getFilePath().equals("Dockerfile") || file.getFilePath().endsWith("/Dockerfile")) {
+            if (relativePath.equals("Dockerfile") || relativePath.endsWith("/Dockerfile")) {
                 normalizeDockerfileBaseImages(projectId, filePath);
             }
 
-            if (file.getFilePath().endsWith("application.yml") || file.getFilePath().endsWith("application.yaml")) {
+            if (relativePath.endsWith("application.yml") || relativePath.endsWith("application.yaml")) {
+                springConfigPaths.add(filePath);
                 normalizeSpringYaml(projectId, filePath);
             }
 
-            if (file.getFilePath().endsWith("application.properties")) {
+            if (relativePath.endsWith("application.properties")) {
+                springConfigPaths.add(filePath);
                 normalizeSpringProperties(projectId, filePath);
             }
+
+            if (relativePath.equals("pom.xml") || relativePath.endsWith("/pom.xml")) {
+                pomPath = filePath;
+            }
             
-            if (file.getFilePath().equals("docker-compose.yml")) {
+            if (relativePath.equals("docker-compose.yml")) {
                 composeFile = file;
             }
         }
 
+        if (pomPath != null) {
+            ensureSpringSecurityDependency(projectId, pomPath, projectDir);
+        }
+
+        fixMissingJavaImports(projectId, projectDir);
+
         if (composeFile != null) {
-            injectTraefikAndLimits(projectDir.resolve("docker-compose.yml"), projectId);
+            Path composePath = projectDir.resolve("docker-compose.yml");
+            injectTraefikAndLimits(composePath, projectId);
+            repairSpringDatasource(projectId, composePath, springConfigPaths, pomPath);
         } else {
             emitLog(projectId, "[WARNING] No docker-compose.yml found in project files.");
         }
@@ -213,9 +232,15 @@ public class DockerExecutionService {
             .replace("FROM openjdk:17-jre-slim", "FROM eclipse-temurin:17-jre-jammy")
             .replace("FROM openjdk:17", "FROM eclipse-temurin:17-jdk-jammy");
 
+        // Build stages using JDK images need Maven installed — replace with maven image
+        normalized = normalized.replaceAll("(?im)^FROM\\s+eclipse-temurin:17-jdk-jammy\\s+AS\\s+(\\S+)", "FROM maven:3.9-eclipse-temurin-17 AS $1");
+
+        // If ./mvnw is referenced but mvnw file may be missing, replace with mvn (Maven is on PATH in the maven image)
+        normalized = normalized.replace("./mvnw", "mvn");
+
         if (!normalized.equals(content)) {
             Files.writeString(dockerfilePath, normalized);
-            emitLog(projectId, "[WARNING] Replaced deprecated Docker base image in " + projectDirRelativeName(dockerfilePath) + ".");
+            emitLog(projectId, "[SYSTEM] Normalized Dockerfile build stage to use maven:3.9-eclipse-temurin-17 for Maven support.");
         }
     }
 
@@ -258,6 +283,202 @@ public class DockerExecutionService {
             Files.writeString(configPath, normalized);
             emitLog(projectId, "[SYSTEM] Set spring.jpa.open-in-view=false in " + projectDirRelativeName(configPath) + ".");
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private void repairSpringDatasource(String projectId, Path composePath, List<Path> springConfigPaths, Path pomPath) throws IOException {
+        DbService db = findPrimaryDbService(composePath);
+        if (db == null) return;
+
+        if (springConfigPaths.isEmpty()) {
+            Path projectRoot = pomPath != null && pomPath.getParent() != null ? pomPath.getParent() : composePath.getParent();
+            Path configPath = projectRoot.resolve("src/main/resources/application.yml");
+            Files.createDirectories(configPath.getParent());
+            Files.writeString(configPath, "spring:\n  jpa:\n    open-in-view: false\n");
+            springConfigPaths.add(configPath);
+            emitLog(projectId, "[SYSTEM] Created missing Spring application.yml for Docker datasource configuration.");
+        }
+
+        for (Path configPath : springConfigPaths) {
+            if (configPath.toString().endsWith(".properties")) {
+                repairSpringDatasourceProperties(projectId, configPath, db);
+            } else {
+                repairSpringDatasourceYaml(projectId, configPath, db);
+            }
+        }
+
+        if (pomPath != null) {
+            ensureJdbcDriverDependency(projectId, pomPath, db);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private DbService findPrimaryDbService(Path composePath) throws IOException {
+        Yaml yaml = new Yaml();
+        Map<String, Object> data;
+        try (InputStream in = Files.newInputStream(composePath)) {
+            Object loaded = yaml.load(in);
+            data = loaded instanceof Map<?, ?> ? (Map<String, Object>) loaded : null;
+        }
+        if (data == null || !(data.get("services") instanceof Map<?, ?> servicesRaw)) return null;
+
+        Map<String, Object> services = (Map<String, Object>) servicesRaw;
+        List<String> candidates = new ArrayList<>();
+        String appServiceName = selectAppServiceName(services);
+        if (services.get(appServiceName) instanceof Map<?, ?> appService) {
+            candidates.addAll(dependsOnServiceNames(((Map<String, Object>) appService).get("depends_on")));
+        }
+        candidates.addAll(services.keySet());
+
+        Set<String> visited = new LinkedHashSet<>(candidates);
+        for (String serviceName : visited) {
+            if (serviceName.equals(appServiceName)) continue;
+            DbService db = dbServiceFromComposeService(serviceName, services.get(serviceName));
+            if (db != null) return db;
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private DbService dbServiceFromComposeService(String serviceName, Object rawService) {
+        if (!(rawService instanceof Map<?, ?> serviceRaw)) return null;
+        Map<String, Object> service = (Map<String, Object>) serviceRaw;
+        String image = String.valueOf(service.getOrDefault("image", "")).toLowerCase(Locale.ROOT);
+        if (image.contains("postgres")) {
+            Map<String, String> env = parseEnvironment(service.get("environment"));
+            String username = env.getOrDefault("POSTGRES_USER", "postgres");
+            String password = env.getOrDefault("POSTGRES_PASSWORD", "postgres");
+            String database = env.getOrDefault("POSTGRES_DB", username);
+            return new DbService("postgres", serviceName, database, username, password);
+        }
+        if (image.contains("mysql") || image.contains("mariadb")) {
+            Map<String, String> env = parseEnvironment(service.get("environment"));
+            String username = env.getOrDefault("MYSQL_USER", "root");
+            String password = env.getOrDefault("MYSQL_PASSWORD", env.getOrDefault("MYSQL_ROOT_PASSWORD", "password"));
+            String database = env.getOrDefault("MYSQL_DATABASE", "app");
+            return new DbService("mysql", serviceName, database, username, password);
+        }
+        return null;
+    }
+
+    private List<String> dependsOnServiceNames(Object rawDependsOn) {
+        if (rawDependsOn instanceof Map<?, ?> map) {
+            return map.keySet().stream().map(String::valueOf).toList();
+        }
+        if (rawDependsOn instanceof List<?> list) {
+            return list.stream().map(String::valueOf).toList();
+        }
+        return List.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, String> parseEnvironment(Object rawEnvironment) {
+        Map<String, String> env = new HashMap<>();
+        if (rawEnvironment instanceof Map<?, ?> map) {
+            map.forEach((key, value) -> env.put(String.valueOf(key), String.valueOf(value)));
+        } else if (rawEnvironment instanceof List<?> list) {
+            for (Object item : list) {
+                String value = String.valueOf(item);
+                int idx = value.indexOf('=');
+                if (idx > 0) {
+                    env.put(value.substring(0, idx), value.substring(idx + 1));
+                }
+            }
+        }
+        return env;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void repairSpringDatasourceYaml(String projectId, Path configPath, DbService db) throws IOException {
+        Yaml yaml = new Yaml();
+        Map<String, Object> data;
+        try (InputStream in = Files.newInputStream(configPath)) {
+            Object loaded = yaml.load(in);
+            data = loaded instanceof Map<?, ?> ? (Map<String, Object>) loaded : new LinkedHashMap<>();
+        }
+
+        Map<String, Object> spring = ensureMap(data, "spring");
+        Map<String, Object> datasource = ensureMap(spring, "datasource");
+        boolean changed = putIfMissing(datasource, "url", db.jdbcUrl());
+        changed |= putIfMissing(datasource, "username", db.username());
+        changed |= putIfMissing(datasource, "password", db.password());
+        changed |= putIfMissing(datasource, "driver-class-name", db.driverClassName());
+
+        Map<String, Object> jpa = ensureMap(spring, "jpa");
+        changed |= putIfMissing(jpa, "open-in-view", false);
+        changed |= putIfMissing(jpa, "database-platform", db.hibernateDialect());
+        Map<String, Object> hibernate = ensureMap(jpa, "hibernate");
+        changed |= putIfMissing(hibernate, "ddl-auto", "update");
+
+        if (changed) {
+            try (Writer writer = Files.newBufferedWriter(configPath)) {
+                yaml.dump(data, writer);
+            }
+            emitLog(projectId, "[SYSTEM] Added Docker datasource settings for " + db.serviceName() + " in " + projectDirRelativeName(configPath) + ".");
+        }
+    }
+
+    private void repairSpringDatasourceProperties(String projectId, Path configPath, DbService db) throws IOException {
+        String content = Files.readString(configPath);
+        String normalized = content;
+        normalized = ensureProperty(normalized, "spring.datasource.url", db.jdbcUrl());
+        normalized = ensureProperty(normalized, "spring.datasource.username", db.username());
+        normalized = ensureProperty(normalized, "spring.datasource.password", db.password());
+        normalized = ensureProperty(normalized, "spring.datasource.driver-class-name", db.driverClassName());
+        normalized = ensureProperty(normalized, "spring.jpa.database-platform", db.hibernateDialect());
+        normalized = ensureProperty(normalized, "spring.jpa.hibernate.ddl-auto", "update");
+        normalized = ensureProperty(normalized, "spring.jpa.open-in-view", "false");
+
+        if (!normalized.equals(content)) {
+            Files.writeString(configPath, normalized);
+            emitLog(projectId, "[SYSTEM] Added Docker datasource settings for " + db.serviceName() + " in " + projectDirRelativeName(configPath) + ".");
+        }
+    }
+
+    private boolean putIfMissing(Map<String, Object> map, String key, Object value) {
+        Object existing = map.get(key);
+        if (existing == null || existing.toString().isBlank()) {
+            map.put(key, value);
+            return true;
+        }
+        return false;
+    }
+
+    private String ensureProperty(String content, String key, String value) {
+        Pattern pattern = Pattern.compile("^" + Pattern.quote(key) + "\\s*=.*$", Pattern.MULTILINE);
+        if (pattern.matcher(content).find()) return content;
+        return content.stripTrailing() + System.lineSeparator() + key + "=" + value + System.lineSeparator();
+    }
+
+    private void ensureJdbcDriverDependency(String projectId, Path pomPath, DbService db) throws IOException {
+        String content = Files.readString(pomPath);
+        String dependency;
+        String marker;
+        if (db.engine().equals("postgres")) {
+            marker = "org.postgresql";
+            dependency = """
+                    <dependency>
+                        <groupId>org.postgresql</groupId>
+                        <artifactId>postgresql</artifactId>
+                        <scope>runtime</scope>
+                    </dependency>
+                """;
+        } else {
+            marker = "mysql-connector-j";
+            dependency = """
+                    <dependency>
+                        <groupId>com.mysql</groupId>
+                        <artifactId>mysql-connector-j</artifactId>
+                        <scope>runtime</scope>
+                    </dependency>
+                """;
+        }
+
+        if (content.contains(marker) || !content.contains("</dependencies>")) return;
+
+        String updated = content.replace("</dependencies>", dependency + "\n    </dependencies>");
+        Files.writeString(pomPath, updated);
+        emitLog(projectId, "[SYSTEM] Added " + db.engine() + " JDBC driver dependency to " + projectDirRelativeName(pomPath) + ".");
     }
 
     @SuppressWarnings("unchecked")
@@ -381,6 +602,249 @@ public class DockerExecutionService {
         return false;
     }
 
+    private void deleteProjectDir(String projectId, Path projectDir) {
+        if (!Files.exists(projectDir)) return;
+
+        // Windows: use cmd /c rd /s /q — more effective at removing locked files
+        if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")) {
+            try {
+                Process p = new ProcessBuilder("cmd", "/c", "rd", "/s", "/q",
+                        projectDir.toAbsolutePath().toString())
+                    .redirectErrorStream(true)
+                    .start();
+                p.waitFor(10, TimeUnit.SECONDS);
+                if (!Files.exists(projectDir)) return;
+                log.warn("[{}] cmd rd did not fully remove {}", projectId, projectDir);
+            } catch (Exception e) {
+                log.warn("[{}] cmd rd failed for {}, falling back to Java walk: {}", projectId, projectDir, e.getMessage());
+            }
+        }
+
+        // Fallback: Java NIO walk with retries
+        int maxRetries = 5;
+        for (int attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                Files.walk(projectDir)
+                    .sorted(Comparator.reverseOrder())
+                    .forEach(p -> {
+                        try {
+                            Files.setAttribute(p, "dos:readonly", false);
+                            Files.deleteIfExists(p);
+                        } catch (IOException e) {
+                            log.debug("[{}] Failed to delete {}: {}", projectId, p, e.getMessage());
+                        }
+                    });
+                if (!Files.exists(projectDir)) return;
+            } catch (IOException e) {
+                log.debug("[{}] Walk delete attempt {} failed: {}", projectId, attempt + 1, e.getMessage());
+            }
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        emitLog(projectId, "[WARNING] Could not fully clean project directory after " + maxRetries + " attempts. Some files may remain.");
+    }
+
+    private void ensureSpringSecurityDependency(String projectId, Path pomPath, Path projectDir) throws IOException {
+        String pomContent = Files.readString(pomPath);
+        boolean hasSecurityDep = pomContent.contains("spring-boot-starter-security");
+        boolean hasSecurityConfig = false;
+        String mainAppPackage = null;
+        boolean needsSecurity = false;
+
+        try (var files = Files.walk(projectDir)) {
+            for (var p : (Iterable<Path>) files::iterator) {
+                if (!p.toString().endsWith(".java")) continue;
+                String src = Files.readString(p);
+                if (src.contains("org.springframework.security")) {
+                    needsSecurity = true;
+                }
+                if (src.contains("SecurityConfig") || src.contains("WebSecurityConfigurer") || src.contains("SecurityFilterChain")) {
+                    hasSecurityConfig = true;
+                }
+                if (src.contains("@SpringBootApplication") || src.contains("@EnableAutoConfiguration")) {
+                    var m = Pattern.compile("^package\\s+([\\w.]+)\\s*;", Pattern.MULTILINE).matcher(src);
+                    if (m.find()) mainAppPackage = m.group(1);
+                }
+            }
+        }
+
+        if (!needsSecurity) return;
+
+        if (!hasSecurityDep) {
+            String dep = """
+                        <dependency>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-starter-security</artifactId>
+                        </dependency>
+                    """;
+            pomContent = pomContent.replace("</dependencies>", dep + "\n    </dependencies>");
+            Files.writeString(pomPath, pomContent);
+            emitLog(projectId, "[SYSTEM] Auto-injected spring-boot-starter-security into pom.xml (detected Spring Security imports in source files).");
+        }
+
+        if (!hasSecurityConfig && mainAppPackage != null) {
+            String configPkg = mainAppPackage + ".config";
+            String configDir = configPkg.replace('.', '/');
+            Path configPath = projectDir.resolve("src/main/java/" + configDir + "/SecurityConfig.java");
+            if (Files.notExists(configPath.getParent())) {
+                Files.createDirectories(configPath.getParent());
+            }
+
+            String securityConfig = """
+                    package %s;
+
+                    import org.springframework.context.annotation.Bean;
+                    import org.springframework.context.annotation.Configuration;
+                    import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+                    import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+                    import org.springframework.security.web.SecurityFilterChain;
+
+                    @Configuration
+                    @EnableWebSecurity
+                    public class SecurityConfig {
+
+                        @Bean
+                        public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+                            http
+                                .csrf(csrf -> csrf.disable())
+                                .authorizeHttpRequests(auth -> auth
+                                    .requestMatchers("/**").permitAll()
+                                )
+                                .formLogin(form -> form.disable())
+                                .httpBasic(basic -> basic.disable());
+                            return http.build();
+                        }
+                    }
+                    """.formatted(configPkg);
+
+            Files.writeString(configPath, securityConfig);
+            emitLog(projectId, "[SYSTEM] Created SecurityConfig.java to disable default auth (sandbox mode).");
+        }
+    }
+
+    private void fixMissingJavaImports(String projectId, Path projectDir) throws IOException {
+        Map<String, String> commonImports = new LinkedHashMap<>();
+        commonImports.put("UUID", "java.util.UUID");
+        commonImports.put("List", "java.util.List");
+        commonImports.put("Map", "java.util.Map");
+        commonImports.put("HashMap", "java.util.HashMap");
+        commonImports.put("ArrayList", "java.util.ArrayList");
+        commonImports.put("Optional", "java.util.Optional");
+        commonImports.put("Set", "java.util.Set");
+        commonImports.put("HashSet", "java.util.HashSet");
+        commonImports.put("Arrays", "java.util.Arrays");
+        commonImports.put("Collections", "java.util.Collections");
+        commonImports.put("Date", "java.util.Date");
+        commonImports.put("LocalDate", "java.time.LocalDate");
+        commonImports.put("LocalDateTime", "java.time.LocalDateTime");
+        commonImports.put("BigDecimal", "java.math.BigDecimal");
+        commonImports.put("Stream", "java.util.stream.Stream");
+        commonImports.put("Collectors", "java.util.stream.Collectors");
+        commonImports.put("Path", "java.nio.file.Path");
+        commonImports.put("Paths", "java.nio.file.Paths");
+        commonImports.put("Files", "java.nio.file.Files");
+
+        try (var files = Files.walk(projectDir)) {
+            files.filter(p -> p.toString().endsWith(".java")).forEach(javaFile -> {
+                try {
+                    String content = Files.readString(javaFile);
+                    String packageName = extractPackage(content);
+                    Set<String> existingImports = extractImports(content);
+                    Set<String> importsToAdd = new LinkedHashSet<>();
+
+                    for (var entry : commonImports.entrySet()) {
+                        String typeName = entry.getKey();
+                        String fullImport = entry.getValue();
+                        String importClassName = fullImport.substring(fullImport.lastIndexOf('.') + 1);
+
+                        if (existingImports.contains(fullImport)
+                            || existingImports.contains(importClassName)
+                            || existingImports.contains(fullImport.substring(0, fullImport.lastIndexOf('.')) + ".*")) {
+                            continue;
+                        }
+
+                        if (packageName != null && fullImport.startsWith(packageName)) continue;
+
+                        if (Pattern.compile("(?<![\\w.])" + Pattern.quote(typeName) + "(?![\\w.])").matcher(content).find()) {
+                            importsToAdd.add(fullImport);
+                        }
+                    }
+
+                    if (!importsToAdd.isEmpty()) {
+                        StringBuilder updated = new StringBuilder();
+                        String[] lines = content.split("\n", -1);
+                        int insertAfter = -1;
+
+                        for (int i = 0; i < lines.length; i++) {
+                            String line = lines[i];
+                            if (line.startsWith("import ")) {
+                                insertAfter = i;
+                            }
+                        }
+
+                        if (insertAfter >= 0) {
+                            for (int i = 0; i <= insertAfter; i++) {
+                                updated.append(lines[i]).append("\n");
+                            }
+                            for (String imp : importsToAdd) {
+                                updated.append("import ").append(imp).append(";\n");
+                            }
+                            for (int i = insertAfter + 1; i < lines.length; i++) {
+                                updated.append(lines[i]).append(i < lines.length - 1 ? "\n" : "");
+                            }
+                        } else {
+                            int packageEnd = -1;
+                            for (int i = 0; i < lines.length; i++) {
+                                if (lines[i].startsWith("package ")) {
+                                    packageEnd = i;
+                                    break;
+                                }
+                            }
+                            if (packageEnd >= 0) {
+                                for (int i = 0; i <= packageEnd; i++) {
+                                    updated.append(lines[i]).append("\n");
+                                }
+                                updated.append("\n");
+                                for (String imp : importsToAdd) {
+                                    updated.append("import ").append(imp).append(";\n");
+                                }
+                                updated.append("\n");
+                                for (int i = packageEnd + 1; i < lines.length; i++) {
+                                    updated.append(lines[i]).append(i < lines.length - 1 ? "\n" : "");
+                                }
+                            }
+                        }
+
+                        if (!updated.isEmpty()) {
+                            Files.writeString(javaFile, updated.toString());
+                            emitLog(projectId, "[SYSTEM] Added missing imports to " + projectDirRelativeName(javaFile) + ": " + String.join(", ", importsToAdd) + ".");
+                        }
+                    }
+                } catch (IOException e) {
+                    log.warn("Failed to fix imports in {}", javaFile, e);
+                }
+            });
+        }
+    }
+
+    private String extractPackage(String content) {
+        var matcher = Pattern.compile("^package\\s+([\\w.]+)\\s*;", Pattern.MULTILINE).matcher(content);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private Set<String> extractImports(String content) {
+        Set<String> imports = new LinkedHashSet<>();
+        var matcher = Pattern.compile("^import\\s+(?:static\\s+)?([\\w.*]+)\\s*;", Pattern.MULTILINE).matcher(content);
+        while (matcher.find()) {
+            imports.add(matcher.group(1));
+        }
+        return imports;
+    }
+
     @SuppressWarnings("unchecked")
     private String selectAppServiceName(Map<String, Object> services) {
         for (Map.Entry<String, Object> entry : services.entrySet()) {
@@ -428,5 +892,25 @@ public class DockerExecutionService {
         return !lower.equals("transfer-encoding")
             && !lower.equals("connection")
             && !lower.equals("content-length");
+    }
+
+    private record DbService(String engine, String serviceName, String database, String username, String password) {
+        private String jdbcUrl() {
+            if (engine.equals("postgres")) {
+                return "jdbc:postgresql://" + serviceName + ":5432/" + database;
+            }
+            return "jdbc:mysql://" + serviceName + ":3306/" + database
+                + "?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false";
+        }
+
+        private String driverClassName() {
+            return engine.equals("postgres") ? "org.postgresql.Driver" : "com.mysql.cj.jdbc.Driver";
+        }
+
+        private String hibernateDialect() {
+            return engine.equals("postgres")
+                ? "org.hibernate.dialect.PostgreSQLDialect"
+                : "org.hibernate.dialect.MySQLDialect";
+        }
     }
 }

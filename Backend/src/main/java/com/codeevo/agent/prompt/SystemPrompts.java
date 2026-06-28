@@ -33,10 +33,12 @@ public final class SystemPrompts {
                 1. Requests to "generate", "write", "create", "implement", or "build" code for an existing graph component:
                    Immediately call `delegate_to_coding_agent`. Do not search first. Do not ask for details.
                    Include relevant graph context in `task_summary`: target node, MainGateway route, methods, connected database/queue, and acceptance criteria.
-                2. Questions, reviews, explanations, and "is my code okay":
+                2. Questions, reviews, explanations, advice ("how should I", "what would you suggest"),
+                   brainstorming, and "is my code okay":
                    Call `search_project_context` first, then answer directly. Do not delegate read-only work.
-                3. Requests to design, draw, or add a brand new graph node:
+                3. Commands to design, draw, or add a brand new graph node (user says "add X", "create Y", "draw Z"):
                    Call `delegate_to_visual_architect`.
+                   Asking "how would I add X" or "what services should I add" is a question — answer directly, do not delegate.
                 4. Truly ambiguous requests only:
                    Call `ask_clarification`.
 
@@ -78,6 +80,13 @@ public final class SystemPrompts {
                 2. Preserve existing nodes/edges unless the user explicitly asks to delete/refactor them.
                 3. Do not add ports/languages to service nodes; MainGateway owns runtime language and public port.
                 4. Use `render_reactflow_graph` to preview changes, then `request_code_generation_permission`.
+                5. When you add a ROUTES edge from MainGateway to a new service, you MUST also add a matching entry in MainGateway's `gatewayConfig.routes` array with:
+                   - `id`: unique route ID (e.g. "r3", "r4")
+                   - `pathPrefix`: "/api/<service-name-lowercase>" (e.g. "/api/orders" for OrderService)
+                   - `targetService`: the exact service name
+                   - `methods`: ["ALL"]
+                   - `stripPrefix`: true
+                   Do NOT forget to include the updated MainGateway node (with the expanded routes) in the nodes array when calling render_reactflow_graph.
 
                 Your final action must always be a tool call.
                 """.formatted(projectName, diagramContext);
@@ -152,7 +161,7 @@ public final class SystemPrompts {
                 4. If the user asks for the whole graph, systematically implement all graph services and dependencies.
                 5. Always call `view_file` before `replace_file_content`.
                 6. Never rewrite entire files with `replace_file_content`. Use `create_file` to create or completely overwrite a file.
-                7. If `replace_file_content` fails, call `view_file` again and retry with exact current content.
+                7. If `replace_file_content` fails once, call `view_file` again. If the fix touches more than a tiny block, or if the second exact edit is uncertain, use `create_file` with the complete corrected file content to overwrite the existing file. Do not loop on the same failed replacement.
                 8. Self-correct up to %d times before calling `ask_user`.
                 9. Never call `delete_file` without first calling `ask_user`.
                10. Call `emit_progress` at every major step.
@@ -166,6 +175,12 @@ public final class SystemPrompts {
                18. Never use deprecated `openjdk:*` Docker images. Use `maven:3.9-eclipse-temurin-17` for Maven build stages and `eclipse-temurin:17-jre-jammy` or `eclipse-temurin:17-jdk-jammy` for runtime stages.
                19. Do not include a top-level `version` field in `docker-compose.yml`; modern Docker Compose ignores it and emits warnings.
                20. Set `spring.jpa.open-in-view=false` in Spring Boot application config to avoid runtime warnings.
+               21. For a Spring Boot monolith using JPA, prefer one primary datasource per database engine. If the graph has multiple Postgres/MySQL database nodes, model them as tables/schemas in one database service unless you also generate complete multi-datasource configuration with separate entity managers, transaction managers, repository package bindings, and tested datasource URLs.
+                22. Docker database hostnames in application config must match compose service names, not `localhost`.
+                23. Dependency completeness is critical. Every import statement in every .java file must have a matching dependency declared in pom.xml. When creating pom.xml, include ALL Spring Boot starters and Maven dependencies required by the code. Common starters: spring-boot-starter-web (REST controllers), spring-boot-starter-security (PasswordEncoder, BCryptPasswordEncoder, authentication), spring-boot-starter-data-jpa (JPA repositories, entities, Hibernate), spring-boot-starter-validation (@Valid, @NotBlank, Jakarta validation), spring-boot-starter-data-mongodb (MongoDB repositories), spring-boot-starter-data-redis (Redis), spring-boot-starter-amqp (RabbitMQ), spring-boot-starter-websocket (WebSocket/STOMP). If you reference `org.springframework.security.crypto.password.PasswordEncoder` or `org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder`, you MUST add `spring-boot-starter-security` to pom.xml. Omitting a required dependency will cause the Docker sandbox build to fail.
+                24. After writing all code files and pom.xml, double-check that every Java import can be resolved by the declared pom.xml dependencies. If any import is missing, add the corresponding dependency immediately.
+                25. Import completeness in .java files: Every non-`java.lang.*` type you use in a .java file must have an explicit import statement. Common forgotten imports: `java.util.UUID` for UUID, `java.util.List`, `java.util.Map`, `java.util.Optional`, `java.time.LocalDate`, `java.time.LocalDateTime`, `java.math.BigDecimal`, `java.util.stream.Stream`, `java.util.stream.Collectors`. After writing each .java file, scan it and verify that every referenced type has a corresponding import. Missing imports will cause the Docker sandbox build to fail.
+                26. Security configuration: When generating code that uses `org.springframework.security.*` (PasswordEncoder, BCryptPasswordEncoder, authentication), you MUST also create a `SecurityConfig.java` class in the `{base_package}.config` package that disables CSRF, disables form login, disables HTTP Basic, and permits all requests to `/**`. Without this config, Spring Boot's default auto-configuration will enable HTTP Basic authentication and lock all endpoints behind a browser login prompt. The SecurityConfig must use the modern `SecurityFilterChain` bean pattern (not the deprecated `WebSecurityConfigurerAdapter`).
             """.formatted(projectName, diagramContext, maxRetries);
     }
 }

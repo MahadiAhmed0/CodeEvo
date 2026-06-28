@@ -121,7 +121,8 @@ public class ToolRegistry {
 
             buildTool("replace_file_content",
                 "Replaces an EXACT block of code in a file. target_content must match EXACTLY including whitespace. " +
-                "NEVER use this to rewrite an entire file.",
+                "NEVER use this to rewrite an entire file. If this fails, read the file again once; then use create_file " +
+                "with the full corrected file content instead of retrying the same replacement.",
                 Map.of(
                     "file_path", strProp("Relative project path to the file, e.g. src/main/java/com/example/UserService.java"),
                     "target_content", strProp("EXACT existing code block to find and replace"),

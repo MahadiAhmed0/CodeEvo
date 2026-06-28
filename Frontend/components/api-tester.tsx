@@ -36,6 +36,7 @@ import { toast } from 'sonner'
 import { useDiagramStore } from '@/lib/store'
 import { useAgentStore } from '@/lib/agent-store'
 import { stompClient } from '@/lib/websocket'
+import { LogLine } from '@/components/log-line'
 
 interface APITesterProps {
   nodes: Node[]
@@ -67,13 +68,14 @@ interface TestableEndpoint {
   source: 'openapi' | 'controller' | 'graph'
   summary?: string
   pathParams?: Record<string, string>
+  requestBodyExample?: any
 }
 
 const MONOLITH_PORT = 8080
 const SAMPLE_UUID = '11111111-1111-4111-8111-111111111111'
 
 export function APITester({ nodes, projectId }: APITesterProps) {
-  const { setShowProjectSettings, dockerStatus, dockerProblems, setDockerStatus, setDockerLogs, previewUrl, setPreviewUrl } = useDiagramStore()
+  const { setShowProjectSettings, dockerStatus, dockerLogs, dockerProblems, setDockerStatus, setDockerLogs, previewUrl, setPreviewUrl } = useDiagramStore()
   const isAgentConnected = useAgentStore((state) => state.isConnected)
   const serviceNodes = nodes.filter((n) => 
     (n.data.type === 'api' && n.data.gatewayConfig?.routes?.length) || 
@@ -174,6 +176,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
             source: 'openapi',
             summary: operation?.summary || operation?.operationId,
             pathParams: extractOpenApiPathParams(operation),
+            requestBodyExample: extractOpenApiRequestBodyExample(operation, spec),
           })
         })
       })
@@ -181,9 +184,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
       setOpenApiEndpoints(discovered)
       setControllerEndpoints([])
       if (discovered.length > 0 && (!endpoint || endpoint === '/api/health')) {
-        setSelectedNodeId('openapi')
-        setMethod(discovered[0].method)
-        setEndpoint(materializeEndpointPath(discovered[0].path, discovered[0].pathParams))
+        applyEndpointSelection('openapi', discovered[0])
       }
       if (!silent && discovered.length > 0) toast.success(`Discovered ${discovered.length} API endpoints`)
     } catch (err) {
@@ -197,12 +198,11 @@ export function APITester({ nodes, projectId }: APITesterProps) {
           target: apiEndpoint.filePath || 'Controller',
           source: 'controller' as const,
           summary: apiEndpoint.summary,
+          requestBodyExample: apiEndpoint.requestBodyExample,
         }))
         setControllerEndpoints(discovered)
         if (discovered.length > 0 && (!endpoint || endpoint === '/api/health')) {
-          setSelectedNodeId('controllers')
-          setMethod(discovered[0].method)
-          setEndpoint(materializeEndpointPath(discovered[0].path))
+          applyEndpointSelection('controllers', discovered[0])
         }
         if (!silent && discovered.length > 0) toast.success(`Scanned ${discovered.length} controller endpoints`)
         if (!silent && discovered.length === 0) toast.error('OpenAPI docs unavailable. Using graph routes.')
@@ -229,6 +229,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
             target: apiEndpoint.filePath || 'Controller',
             source: 'controller' as const,
             summary: apiEndpoint.summary,
+            requestBodyExample: apiEndpoint.requestBodyExample,
           }))))
           .catch(() => setControllerEndpoints([]))
       }
@@ -262,9 +263,11 @@ export function APITester({ nodes, projectId }: APITesterProps) {
   }, [])
 
   const selectRoute = useCallback((nodeId: string, route: any) => {
-    setSelectedNodeId(nodeId)
-    setEndpoint(materializeEndpointPath(route.pathPrefix || route.path || '/api/endpoint', route.pathParams))
-    setMethod(route.methods && route.methods.length > 0 && route.methods[0] !== 'ALL' ? route.methods[0] : 'GET')
+    applyEndpointSelection(nodeId, {
+      ...route,
+      method: route.methods && route.methods.length > 0 && route.methods[0] !== 'ALL' ? route.methods[0] : route.method,
+      path: route.pathPrefix || route.path || '/api/endpoint',
+    })
   }, [])
 
   const handleSendRequest = async () => {
@@ -377,6 +380,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
       template: apiEndpoint.path,
       method: apiEndpoint.method,
       source: apiEndpoint.source,
+      requestBodyExample: apiEndpoint.requestBodyExample,
       running: false,
     }))
 
@@ -389,10 +393,9 @@ export function APITester({ nodes, projectId }: APITesterProps) {
       const test = allTests[i]
       setTestSuiteResults(prev => prev.map((t, idx) => idx === i ? { ...t, running: true } : t))
       
-      let mockBody = undefined
-      if (test.method === 'POST' || test.method === 'PUT') {
-        mockBody = generateMockPayload(test.endpoint)
-      }
+      const mockBody = requestMethodHasBody(test.method)
+        ? test.requestBodyExample ?? generateMockPayload(test.endpoint)
+        : undefined
 
       const startTime = Date.now()
       try {
@@ -456,6 +459,70 @@ export function APITester({ nodes, projectId }: APITesterProps) {
     return params
   }
 
+  function extractOpenApiRequestBodyExample(operation: any, spec: any): any {
+    const requestBody = resolveOpenApiRef(operation?.requestBody, spec)
+    const jsonContent = requestBody?.content?.['application/json']
+      || requestBody?.content?.['application/*+json']
+      || Object.values(requestBody?.content || {})[0] as any
+
+    if (!jsonContent) return undefined
+    if (jsonContent.example !== undefined) return jsonContent.example
+    if (jsonContent.examples) {
+      const firstExample = Object.values(jsonContent.examples)[0] as any
+      if (firstExample?.value !== undefined) return firstExample.value
+    }
+
+    return exampleFromSchema(resolveOpenApiRef(jsonContent.schema, spec), spec)
+  }
+
+  function resolveOpenApiRef(value: any, spec: any): any {
+    if (!value?.$ref) return value
+    const parts = String(value.$ref).replace(/^#\//, '').split('/')
+    return parts.reduce((current: any, part: string) => current?.[part], spec)
+  }
+
+  function exampleFromSchema(schema: any, spec: any, seen = new Set<string>()): any {
+    const resolved = resolveOpenApiRef(schema, spec)
+    if (!resolved) return { data: 'test payload' }
+    if (resolved.example !== undefined) return resolved.example
+    if (resolved.default !== undefined) return resolved.default
+    if (resolved.enum?.length) return resolved.enum[0]
+
+    if (resolved.allOf?.length) {
+      return resolved.allOf.reduce((acc: any, child: any) => ({
+        ...acc,
+        ...exampleFromSchema(child, spec, seen),
+      }), {})
+    }
+    if (resolved.oneOf?.length || resolved.anyOf?.length) {
+      return exampleFromSchema((resolved.oneOf || resolved.anyOf)[0], spec, seen)
+    }
+
+    const type = Array.isArray(resolved.type) ? resolved.type[0] : resolved.type
+    if (type === 'array') return [exampleFromSchema(resolved.items, spec, seen)]
+    if (type === 'object' || resolved.properties) {
+      const output: Record<string, any> = {}
+      Object.entries(resolved.properties || {}).forEach(([key, propertySchema]: [string, any]) => {
+        output[key] = exampleFromSchema(propertySchema, spec, seen)
+      })
+      return Object.keys(output).length ? output : { data: 'test payload' }
+    }
+
+    return sampleScalarForSchema(resolved)
+  }
+
+  function sampleScalarForSchema(schema: any): any {
+    const format = String(schema?.format || '').toLowerCase()
+    const type = String(schema?.type || '').toLowerCase()
+    if (format === 'uuid') return SAMPLE_UUID
+    if (format === 'email') return 'test@example.com'
+    if (format === 'date') return '2026-01-01'
+    if (format === 'date-time') return '2026-01-01T00:00:00Z'
+    if (type === 'integer' || type === 'number') return 1
+    if (type === 'boolean') return true
+    return 'string'
+  }
+
   function sampleValueForPathParam(name: string, schema?: any): string {
     const normalized = name.toLowerCase()
     const format = String(schema?.format || '').toLowerCase()
@@ -503,6 +570,37 @@ export function APITester({ nodes, projectId }: APITesterProps) {
     if (requestMethod === 'GET' && hasPathParam && status === 404) return true
     if (requestMethod === 'DELETE' && hasPathParam && status === 404) return true
     return false
+  }
+
+  function requestMethodHasBody(requestMethod: string): boolean {
+    return ['POST', 'PUT', 'PATCH'].includes(requestMethod)
+  }
+
+  function requestBodyForEndpoint(apiEndpoint: Partial<TestableEndpoint>): string {
+    const example = apiEndpoint.requestBodyExample ?? generateMockPayload(apiEndpoint.path || endpoint)
+    return JSON.stringify(example, null, 2)
+  }
+
+  function applyEndpointSelection(nodeId: string, apiEndpoint: Partial<TestableEndpoint>) {
+    const nextMethod = String(apiEndpoint.method || 'GET').toUpperCase()
+    const nextPath = materializeEndpointPath(apiEndpoint.path || '/api/endpoint', apiEndpoint.pathParams)
+    setSelectedNodeId(nodeId)
+    setEndpoint(nextPath)
+    setMethod(nextMethod)
+    if (requestMethodHasBody(nextMethod)) {
+      setBody(requestBodyForEndpoint(apiEndpoint))
+      setActiveTab('body')
+    } else {
+      setBody('')
+    }
+  }
+
+  function findEndpointForRequest(nextMethod: string, nextEndpoint: string): TestableEndpoint | undefined {
+    return activeEndpoints.find((apiEndpoint) => {
+      if (apiEndpoint.method !== nextMethod) return false
+      const materialized = materializeEndpointPath(apiEndpoint.path, apiEndpoint.pathParams)
+      return materialized === nextEndpoint || apiEndpoint.path === nextEndpoint || pathMatchesTemplate(nextEndpoint, apiEndpoint.path)
+    })
   }
 
   return (
@@ -634,11 +732,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
                           : 'text-gray-400 hover:text-white hover:bg-white/[0.04]'
                       }`}
                       style={{ paddingLeft: '28px' }}
-                      onClick={() => {
-                        setSelectedNodeId(discoveredNodeId)
-                        setEndpoint(routeEndpoint)
-                        setMethod(route.method)
-                      }}
+                      onClick={() => applyEndpointSelection(discoveredNodeId, route)}
                     >
                       <div className="flex items-center gap-2">
                         <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${mc.badge} shrink-0`}>
@@ -694,11 +788,7 @@ export function APITester({ nodes, projectId }: APITesterProps) {
                             : 'text-gray-400 hover:text-white hover:bg-white/[0.04]'
                         }`}
                         style={{ paddingLeft: '28px' }}
-                        onClick={() => {
-                          setSelectedNodeId(gw.id)
-                          setEndpoint(routeEndpoint)
-                          setMethod(route.method)
-                        }}
+                        onClick={() => applyEndpointSelection(gw.id, route)}
                       >
                         <div className="flex items-center gap-2">
                           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${mc.badge} shrink-0`}>
@@ -733,7 +823,17 @@ export function APITester({ nodes, projectId }: APITesterProps) {
               <div className="relative shrink-0">
                 <select
                   value={method}
-                  onChange={(e) => setMethod(e.target.value)}
+                  onChange={(e) => {
+                    const nextMethod = e.target.value
+                    setMethod(nextMethod)
+                    const matchingEndpoint = findEndpointForRequest(nextMethod, endpoint)
+                    if (requestMethodHasBody(nextMethod)) {
+                      setBody(requestBodyForEndpoint(matchingEndpoint || { method: nextMethod, path: endpoint }))
+                      setActiveTab('body')
+                    } else {
+                      setBody('')
+                    }
+                  }}
                   className={`appearance-none h-full pl-3 pr-8 py-2 border rounded-lg font-bold text-[12px] outline-none cursor-pointer ${
                     methodColors[method]?.badge || methodColors.GET.badge
                   }`}
@@ -1106,23 +1206,13 @@ export function APITester({ nodes, projectId }: APITesterProps) {
               </div>
             )
           ) : bottomTab === 'console' ? (
-            <>
-              <div className="flex items-start gap-2">
-                <span className="text-blue-400">[INFO]</span>
-                <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-                <span>API Workspace initialized successfully.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-emerald-400"><CheckCircle2 size={14} /></span>
-                <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-                <span className="text-emerald-400">{activeEndpoints.length} endpoints loaded from {endpointSourceLabel}.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-blue-400">[SYSTEM]</span>
-                <span className="text-gray-500">{new Date().toLocaleTimeString()}</span>
-                <span>Ready for testing. Select an endpoint or run Auto-Test All.</span>
-              </div>
-            </>
+            <div className="space-y-1">
+              {dockerLogs.length === 0 ? (
+                <div className="text-gray-500 italic">Run the Docker sandbox to see build and server logs here.</div>
+              ) : (
+                dockerLogs.map((log, i) => <LogLine key={i} line={log} />)
+              )}
+            </div>
           ) : bottomTab === 'problems' ? (
             <div className="space-y-2">
               {dockerProblems.length === 0 ? (

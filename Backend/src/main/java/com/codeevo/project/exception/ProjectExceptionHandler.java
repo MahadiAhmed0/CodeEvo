@@ -6,10 +6,10 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -63,6 +63,12 @@ public class ProjectExceptionHandler {
         String message = "Validation failed: " + errors.toString();
         log.warn("Validation error: {}", message);
         return buildErrorResponse(HttpStatus.BAD_REQUEST, "Validation Error", message, request.getRequestURI());
+    }
+
+    @ExceptionHandler(AsyncRequestNotUsableException.class)
+    public ResponseEntity<ErrorResponse> handleClientAbort(AsyncRequestNotUsableException ex, HttpServletRequest request) {
+        log.debug("Client disconnected: {}", ex.getMessage() != null ? ex.getMessage() : "connection aborted");
+        return null;
     }
 
     @ExceptionHandler(Exception.class)
