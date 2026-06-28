@@ -89,6 +89,10 @@ public class DockerExecutionService {
         updateActivity(projectId);
         try {
             Path projectDir = Paths.get(WORKSPACE_DIR, projectId);
+            if (Files.notExists(projectDir)) {
+                projectStatus.put(projectId, "STOPPED");
+                return;
+            }
             ProcessBuilder pb = new ProcessBuilder("docker", "compose", "down");
             pb.directory(projectDir.toFile());
             Process p = pb.start();
@@ -104,6 +108,59 @@ public class DockerExecutionService {
         } catch (Exception e) {
             log.error("Failed to stop project {}", projectId, e);
         }
+    }
+
+    public String rebuildProject(String projectId) throws Exception {
+        updateActivity(projectId);
+        emitLog(projectId, "[SYSTEM] Starting fresh rebuild — destroying existing containers, images, and volumes...");
+
+        Path projectDir = Paths.get(WORKSPACE_DIR, projectId);
+        if (Files.exists(projectDir)) {
+            try {
+                ProcessBuilder pb = new ProcessBuilder("docker", "compose", "down", "--rmi", "all", "-v", "--remove-orphans");
+                pb.directory(projectDir.toFile());
+                pb.redirectErrorStream(true);
+                Process p = pb.start();
+                p.waitFor();
+                emitLog(projectId, "[SYSTEM] Existing Docker resources destroyed.");
+            } catch (Exception e) {
+                log.warn("[{}] Docker cleanup warning (non-fatal): {}", projectId, e.getMessage());
+            }
+
+            Process tailProcess = activeProcesses.remove(projectId);
+            if (tailProcess != null) {
+                tailProcess.destroy();
+            }
+        }
+
+        projectStatus.put(projectId, "BUILDING");
+        exportProject(projectId);
+
+        ProcessBuilder pb = new ProcessBuilder("docker", "compose", "up", "--build", "-d");
+        pb.directory(projectDir.toFile());
+        pb.redirectErrorStream(true);
+
+        Process process = pb.start();
+        streamLogs(projectId, process.getInputStream());
+
+        int exitCode = process.waitFor();
+        if (exitCode == 0) {
+            tailLogs(projectId, projectDir);
+            emitLog(projectId, "[SYSTEM] Container built. Waiting for app server on " + getPreviewUrl(projectId) + "...");
+            boolean ready = waitForSandboxServer(projectId);
+            if (ready) {
+                projectStatus.put(projectId, "RUNNING");
+                emitLog(projectId, "[SYSTEM] Container started successfully. Starting log tail...");
+            } else {
+                projectStatus.put(projectId, "FAILED");
+                emitLog(projectId, "[ERROR] App server did not respond before the readiness timeout. Check Problems and logs.");
+            }
+        } else {
+            projectStatus.put(projectId, "FAILED");
+            emitLog(projectId, "[ERROR] Container failed to start (exit code " + exitCode + ")");
+        }
+
+        return getPreviewUrl(projectId);
     }
 
     public String getStatus(String projectId) {
@@ -237,6 +294,14 @@ public class DockerExecutionService {
 
         // If ./mvnw is referenced but mvnw file may be missing, replace with mvn (Maven is on PATH in the maven image)
         normalized = normalized.replace("./mvnw", "mvn");
+
+        // Replace mvn dependency:go-offline — it can fail on network-restricted builds
+        // and brings in unnecessary transitive plugin deps (e.g. maven-site-plugin).
+        // Merge into a single package step (go-offline is an optimisation, not a requirement).
+        normalized = normalized.replace(
+            "RUN mvn dependency:go-offline\nCOPY src src\nRUN mvn package -DskipTests",
+            "COPY src src\nRUN mvn package -DskipTests"
+        );
 
         if (!normalized.equals(content)) {
             Files.writeString(dockerfilePath, normalized);
@@ -870,11 +935,11 @@ public class DockerExecutionService {
         return services.keySet().iterator().next();
     }
 
-    private HttpRequest.BodyPublisher requestBody(String method, byte[] body) {
+    private java.net.http.HttpRequest.BodyPublisher requestBody(String method, byte[] body) {
         if (method.equalsIgnoreCase("GET") || method.equalsIgnoreCase("HEAD")) {
-            return HttpRequest.BodyPublishers.noBody();
+            return java.net.http.HttpRequest.BodyPublishers.noBody();
         }
-        return body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofByteArray(body);
+        return body == null ? java.net.http.HttpRequest.BodyPublishers.noBody() : java.net.http.HttpRequest.BodyPublishers.ofByteArray(body);
     }
 
     private boolean shouldForwardHeader(String name) {
