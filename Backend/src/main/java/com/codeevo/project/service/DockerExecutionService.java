@@ -51,6 +51,8 @@ public class DockerExecutionService {
             return getPreviewUrl(projectId);
         }
 
+        stopProject(projectId); // Release Docker file locks before cleaning the temp directory
+
         projectStatus.put(projectId, "BUILDING");
         exportProject(projectId);
 
@@ -175,29 +177,34 @@ public class DockerExecutionService {
         List<Path> springConfigPaths = new ArrayList<>();
 
         for (ProjectCode file : files) {
-            Path filePath = projectDir.resolve(file.getFilePath());
+            String relativePath = file.getFilePath();
+            if (relativePath == null || relativePath.isBlank()) {
+                log.warn("[{}] Skipping code entry with empty file path", projectId);
+                continue;
+            }
+            Path filePath = projectDir.resolve(relativePath);
             Files.createDirectories(filePath.getParent());
             Files.writeString(filePath, file.getContent());
 
-            if (file.getFilePath().equals("Dockerfile") || file.getFilePath().endsWith("/Dockerfile")) {
+            if (relativePath.equals("Dockerfile") || relativePath.endsWith("/Dockerfile")) {
                 normalizeDockerfileBaseImages(projectId, filePath);
             }
 
-            if (file.getFilePath().endsWith("application.yml") || file.getFilePath().endsWith("application.yaml")) {
+            if (relativePath.endsWith("application.yml") || relativePath.endsWith("application.yaml")) {
                 springConfigPaths.add(filePath);
                 normalizeSpringYaml(projectId, filePath);
             }
 
-            if (file.getFilePath().endsWith("application.properties")) {
+            if (relativePath.endsWith("application.properties")) {
                 springConfigPaths.add(filePath);
                 normalizeSpringProperties(projectId, filePath);
             }
 
-            if (file.getFilePath().equals("pom.xml") || file.getFilePath().endsWith("/pom.xml")) {
+            if (relativePath.equals("pom.xml") || relativePath.endsWith("/pom.xml")) {
                 pomPath = filePath;
             }
             
-            if (file.getFilePath().equals("docker-compose.yml")) {
+            if (relativePath.equals("docker-compose.yml")) {
                 composeFile = file;
             }
         }
@@ -597,6 +604,23 @@ public class DockerExecutionService {
 
     private void deleteProjectDir(String projectId, Path projectDir) {
         if (!Files.exists(projectDir)) return;
+
+        // Windows: use cmd /c rd /s /q — more effective at removing locked files
+        if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")) {
+            try {
+                Process p = new ProcessBuilder("cmd", "/c", "rd", "/s", "/q",
+                        projectDir.toAbsolutePath().toString())
+                    .redirectErrorStream(true)
+                    .start();
+                p.waitFor(10, TimeUnit.SECONDS);
+                if (!Files.exists(projectDir)) return;
+                log.warn("[{}] cmd rd did not fully remove {}", projectId, projectDir);
+            } catch (Exception e) {
+                log.warn("[{}] cmd rd failed for {}, falling back to Java walk: {}", projectId, projectDir, e.getMessage());
+            }
+        }
+
+        // Fallback: Java NIO walk with retries
         int maxRetries = 5;
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
@@ -604,17 +628,16 @@ public class DockerExecutionService {
                     .sorted(Comparator.reverseOrder())
                     .forEach(p -> {
                         try {
-                            File f = p.toFile();
-                            if (f.isDirectory()) {
-                                f.delete();
-                            } else {
-                                f.setWritable(true);
-                                Files.deleteIfExists(p);
-                            }
-                        } catch (IOException ignored) {}
+                            Files.setAttribute(p, "dos:readonly", false);
+                            Files.deleteIfExists(p);
+                        } catch (IOException e) {
+                            log.debug("[{}] Failed to delete {}: {}", projectId, p, e.getMessage());
+                        }
                     });
                 if (!Files.exists(projectDir)) return;
-            } catch (IOException ignored) {}
+            } catch (IOException e) {
+                log.debug("[{}] Walk delete attempt {} failed: {}", projectId, attempt + 1, e.getMessage());
+            }
             try {
                 Thread.sleep(500);
             } catch (InterruptedException e) {
