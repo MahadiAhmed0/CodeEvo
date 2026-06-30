@@ -36,7 +36,6 @@ public class DockerExecutionService {
     private final HttpClient sandboxHttpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build();
 
     private static final String WORKSPACE_DIR = System.getProperty("java.io.tmpdir") + "/codeevo-projects";
-    private static final String DOMAIN = "sandbox.yourdomain.com";
     private static final int SANDBOX_PORT_BASE = 18000;
     private static final int SANDBOX_PORT_RANGE = 20000;
 
@@ -274,7 +273,7 @@ public class DockerExecutionService {
 
         if (composeFile != null) {
             Path composePath = projectDir.resolve("docker-compose.yml");
-            injectTraefikAndLimits(composePath, projectId);
+            injectSandboxConfig(composePath, projectId);
             repairSpringDatasource(projectId, composePath, springConfigPaths, pomPath);
         } else {
             emitLog(projectId, "[WARNING] No docker-compose.yml found in project files.");
@@ -547,7 +546,7 @@ public class DockerExecutionService {
     }
 
     @SuppressWarnings("unchecked")
-    private void injectTraefikAndLimits(Path composePath, String projectId) throws IOException {
+    private void injectSandboxConfig(Path composePath, String projectId) throws IOException {
         Yaml yaml = new Yaml();
         try (InputStream in = Files.newInputStream(composePath)) {
             Map<String, Object> data = yaml.load(in);
@@ -557,42 +556,12 @@ public class DockerExecutionService {
                 if (services != null && !services.isEmpty()) {
                     String appServiceName = selectAppServiceName(services);
                     Map<String, Object> appService = (Map<String, Object>) services.get(appServiceName);
-                    
+
                     appService.put("mem_limit", "512m");
                     appService.put("cpus", 0.5);
-                    
-                    // Publish a deterministic localhost port so the backend proxy and browser preview can reach the sandbox.
+
                     appService.put("ports", Collections.singletonList("127.0.0.1:" + getSandboxPort(projectId) + ":8080"));
-                    appService.put("expose", Collections.singletonList("8080"));
-                    
-                    // Networks
-                    List<String> networks = (List<String>) appService.get("networks");
-                    if (networks == null) {
-                        networks = new ArrayList<>();
-                        networks.add("default"); // preserve default network for DB access
-                    }
-                    if (!networks.contains("codeevo-proxy-net")) {
-                        networks.add("codeevo-proxy-net");
-                        appService.put("networks", networks);
-                    }
-                    
-                    // Labels
-                    List<String> labels = new ArrayList<>();
-                    labels.add("traefik.enable=true");
-                    labels.add("traefik.http.routers.proj-" + projectId + ".rule=Host(`" + projectId + "." + DOMAIN + "`)");
-                    labels.add("traefik.http.services.proj-" + projectId + ".loadbalancer.server.port=8080");
-                    labels.add("codeevo.managed=true");
-                    appService.put("labels", labels);
-                    
-                    // Top level network
-                    Map<String, Object> topNetworks = (Map<String, Object>) data.getOrDefault("networks", new HashMap<>());
-                    Map<String, Object> proxyNet = new HashMap<>();
-                    proxyNet.put("external", true);
-                    proxyNet.put("name", "codeevo-proxy-net");
-                    topNetworks.put("codeevo-proxy-net", proxyNet);
-                    data.put("networks", topNetworks);
-                    
-                    // Write back
+
                     try (Writer writer = Files.newBufferedWriter(composePath)) {
                         yaml.dump(data, writer);
                     }
