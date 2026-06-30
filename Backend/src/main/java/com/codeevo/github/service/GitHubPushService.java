@@ -56,10 +56,16 @@ public class GitHubPushService {
     public Map<String, Object> getSyncDiff(String userId, String projectId) {
         Optional<ProjectGitHubLink> opt = linkRepository.findByProjectId(projectId);
         if (opt.isEmpty()) {
-            return Map.of("changes", List.of(), "totalChanges", 0,
-                    "ahead", false, "behind", false,
-                    "aheadBy", 0, "behindBy", 0, "lastPushedCommitSha", null,
-                    "linked", false);
+            Map<String, Object> notLinkedResult = new LinkedHashMap<>();
+            notLinkedResult.put("changes", List.of());
+            notLinkedResult.put("totalChanges", 0);
+            notLinkedResult.put("ahead", false);
+            notLinkedResult.put("behind", false);
+            notLinkedResult.put("aheadBy", 0);
+            notLinkedResult.put("behindBy", 0);
+            notLinkedResult.put("lastPushedCommitSha", null);
+            notLinkedResult.put("linked", false);
+            return notLinkedResult;
         }
         ProjectGitHubLink link = opt.get();
 
