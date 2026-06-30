@@ -22,10 +22,13 @@ public class GitHubCommitService {
                 .orElseThrow(() -> new RuntimeException("Project not linked to GitHub"));
         if (!apiClient.hasToken(userId)) return List.of();
 
+        String branchParam = branch != null ? branch : link.getActiveBranch();
         String path = "/repos/" + link.getFullName() + "/commits" +
-                "?page=" + page + "&per_page=" + perPage +
-                "&sha=" + (branch != null ? branch : link.getActiveBranch());
+                "?page=" + page + "&per_page=" + perPage;
 
+        if (branchParam != null) {
+            path += "&sha=" + branchParam;
+        }
         if (author != null) {
             path += "&author=" + author;
         }
@@ -35,7 +38,8 @@ public class GitHubCommitService {
         try {
             response = apiClient.get(userId, path, Map[].class);
         } catch (HttpClientErrorException e) {
-            if (e.getStatusCode().value() == 409) {
+            int status = e.getStatusCode().value();
+            if (status == 409 || status == 404) {
                 return commits;
             }
             throw e;
